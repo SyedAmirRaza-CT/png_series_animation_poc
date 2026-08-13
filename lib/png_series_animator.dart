@@ -388,15 +388,14 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       ),
     );
 
-    if (isLandscape) {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    // Reset orientations and UI mode when returning from full screen
+    // Force the app back to portrait mode (only Up for maximum compatibility)
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+
+    // Always restore the system UI (status bar and navigation bar)
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   String _formatDuration(Duration duration) {
