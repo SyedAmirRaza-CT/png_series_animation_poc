@@ -10,38 +10,51 @@ class ImageCacheManager {
   factory ImageCacheManager() => _instance;
   ImageCacheManager._internal();
 
-  Future<File?> getCachedFile(String url) async {
+  String? _storagePath;
+
+  Future<String> _getStoragePath() async {
+    if (_storagePath != null) return _storagePath!;
     final appDir = await getApplicationSupportDirectory();
-    final pngCacheDir = Directory('${appDir.path}/png_series_storage');
-    if (!await pngCacheDir.exists()) {
-      await pngCacheDir.create(recursive: true);
+    _storagePath = '${appDir.path}/png_series_storage';
+    final directory = Directory(_storagePath!);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
     }
+    return _storagePath!;
+  }
 
-    final urlHash = md5.convert(utf8.encode(url)).toString();
-    final extension = url.split('.').last.split('?').first;
-    final localFile = File('${pngCacheDir.path}/$urlHash.$extension');
-
-    if (await localFile.exists()) {
-      return localFile;
-    }
-
+  Future<File?> getCachedFile(String url) async {
     try {
+      final storagePath = await _getStoragePath();
+      final urlHash = md5.convert(utf8.encode(url)).toString();
+      final extension = url.split('.').last.split('?').first;
+      final localFile = File('$storagePath/$urlHash.$extension');
+
+      if (await localFile.exists()) {
+        return localFile;
+      }
+
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         await localFile.writeAsBytes(response.bodyBytes);
         return localFile;
       }
     } catch (e) {
-      debugPrint('Error downloading image $url: $e');
+      debugPrint('ImageCacheManager: Error processing $url: $e');
     }
     return null;
   }
 
   Future<void> clearCache() async {
-    final appDir = await getApplicationSupportDirectory();
-    final pngCacheDir = Directory('${appDir.path}/png_series_storage');
-    if (await pngCacheDir.exists()) {
-      await pngCacheDir.delete(recursive: true);
+    try {
+      final storagePath = await _getStoragePath();
+      final directory = Directory(storagePath);
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+      _storagePath = null;
+    } catch (e) {
+      debugPrint('ImageCacheManager: Error clearing cache: $e');
     }
   }
 }

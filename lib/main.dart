@@ -144,8 +144,8 @@ class NetworkAssetDemo extends StatelessWidget {
   Widget build(BuildContext context) {
     // Using a more reliable set of placeholder images for the demo
     final List<String> networkImages = List.generate(
-      10,
-      (index) => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${index + 1}.png',
+      30,
+      (index) => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${index + 71}.png',
     );
 
     return Scaffold(
@@ -164,7 +164,7 @@ class NetworkAssetDemo extends StatelessWidget {
             child: Center(
               child: PngSeriesAnimator.videoPlayer(
                 imagePaths: networkImages,
-                duration: const Duration(seconds: 5),
+                duration: const Duration(seconds: 10),
                 heroTag: 'network_hero',
                 fit: BoxFit.contain,
               ),

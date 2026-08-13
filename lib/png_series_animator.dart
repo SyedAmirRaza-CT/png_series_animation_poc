@@ -80,7 +80,9 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   bool _precached = false;
   bool _shouldTriggerCompleted = false;
   final Map<String, ImageProvider> _imageProviders = {};
+  final Set<int> _loadedIndices = {};
   double? _aspectRatio;
+  bool _isBuffering = false;
 
   // State for video controls
   late bool _isPlaying;
@@ -116,7 +118,8 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       }
     });
 
-    _updateAnimationState();
+    // We do NOT call _updateAnimationState() here anymore.
+    // Startup will be managed by _precacheImages once initial buffer is ready.
     
     if (widget.showControls) {
       _startHideTimer();
@@ -155,12 +158,41 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
 
   Future<void> _precacheImages() async {
     final cacheManager = ImageCacheManager();
+    final int total = widget.imagePaths.length;
+    
+    // 1. Load the essential startup buffer (First 15% or at least 5 frames)
+    // We wait for these to be FULLY ready before showing anything to the user.
+    final int startupBufferCount = (total * 0.15).ceil().clamp(3, 8);
+    
+    for (int i = 0; i < startupBufferCount; i++) {
+      if (i < total) {
+        await _loadFrame(i, cacheManager);
+      }
+    }
+    
+    // 2. Start the show
+    if (mounted) {
+      setState(() {
+        _precached = true;
+        _updateAnimationState();
+      });
+    }
+    
+    // 3. Load all remaining frames in parallel in the background
+    // We don't await these, they will fill the buffer as the user watches.
+    for (int i = startupBufferCount; i < total; i++) {
+      _loadFrame(i, cacheManager);
+    }
+  }
 
-    for (int i = 0; i < widget.imagePaths.length; i++) {
-      if (!mounted) return;
-      final path = widget.imagePaths[i];
-      ImageProvider provider;
+  Future<void> _loadFrame(int index, ImageCacheManager cacheManager) async {
+    if (!mounted) return;
+    final path = widget.imagePaths[index];
+    
+    if (_imageProviders.containsKey(path) && _loadedIndices.contains(index)) return;
 
+    ImageProvider provider;
+    try {
       if (path.startsWith('http')) {
         final localFile = await cacheManager.getCachedFile(path);
         if (localFile != null) {
@@ -172,41 +204,56 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
         provider = AssetImage(path);
       }
 
+      if (!mounted) return;
       _imageProviders[path] = provider;
 
-      try {
-        if (i == 0) {
-          if (!mounted) return;
-          final ImageStream stream = provider.resolve(createLocalImageConfiguration(context));
-          final Completer<void> completer = Completer<void>();
-          final ImageStreamListener listener = ImageStreamListener(
-            (ImageInfo info, bool synchronousCall) {
-              if (mounted) {
-                setState(() {
-                  _aspectRatio = info.image.width / info.image.height;
-                });
-              }
-              if (!completer.isCompleted) completer.complete();
-            },
-            onError: (dynamic exception, StackTrace? stackTrace) {
-              if (!completer.isCompleted) completer.complete();
-            },
-          );
-          stream.addListener(listener);
-          await precacheImage(provider, context);
-          await completer.future;
-          stream.removeListener(listener);
-        } else {
-          await precacheImage(provider, context);
-        }
-      } catch (e) {
-        debugPrint('Error precaching image: $e');
+      // Handle aspect ratio from frame 0
+      if (index == 0 && _aspectRatio == null) {
+        final ImageStream stream = provider.resolve(createLocalImageConfiguration(context));
+        final Completer<void> completer = Completer<void>();
+        final ImageStreamListener listener = ImageStreamListener(
+          (ImageInfo info, bool synchronousCall) {
+            if (mounted) {
+              setState(() {
+                _aspectRatio = info.image.width / info.image.height;
+              });
+            }
+            if (!completer.isCompleted) completer.complete();
+          },
+          onError: (dynamic exception, StackTrace? stackTrace) {
+            if (!completer.isCompleted) completer.complete();
+          },
+        );
+        stream.addListener(listener);
+        await precacheImage(provider, context);
+        await completer.future;
+        stream.removeListener(listener);
+      } else {
+        await precacheImage(provider, context);
       }
-    }
-    if (mounted) {
-      setState(() {
-        _precached = true;
-      });
+
+      if (mounted) {
+        setState(() {
+          _loadedIndices.add(index);
+          
+          // BUFFER RESUMPTION
+          if (_isBuffering) {
+            final int total = widget.imagePaths.length;
+            final int currentRequiredFrame = (_controller.value * total).floor().clamp(0, total - 1);
+            if (_loadedIndices.contains(currentRequiredFrame)) {
+              _isBuffering = false;
+              _updateAnimationState();
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading frame $index: $e');
+      if (mounted) {
+        setState(() {
+          _loadedIndices.add(index);
+        });
+      }
     }
   }
 
@@ -225,13 +272,16 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     
     if (oldWidget.imagePaths != widget.imagePaths) {
        _imageProviders.clear();
+       _loadedIndices.clear();
        _precached = false;
        _precacheImages();
     }
   }
 
   void _updateAnimationState() {
-    if (_isPlaying) {
+    if (!_precached) return; // Wait for initial buffer
+
+    if (_isPlaying && !_isBuffering) {
       if (widget.repeat) {
         _shouldTriggerCompleted = false;
         _controller.repeat();
@@ -366,134 +416,181 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
 
   @override
   Widget build(BuildContext context) {
-    if (!_precached) {
-      return SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: !_precached
+          ? SizedBox(
+              key: const ValueKey('loader'),
+              width: widget.width,
+              height: widget.height,
+              child: const Center(child: CircularProgressIndicator()),
+            )
+          : AnimatedBuilder(
+              key: const ValueKey('animator'),
+              animation: _controller,
+              builder: (context, child) {
+                final double value = _controller.value;
+                final int totalFrames = widget.imagePaths.length;
+                final int frameIndex = (value * totalFrames).floor().clamp(0, totalFrames - 1);
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final double value = _controller.value;
-        final int totalFrames = widget.imagePaths.length;
+                // Buffering Logic: If the current frame isn't loaded yet
+                if (!_loadedIndices.contains(frameIndex) && !_isBuffering) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && !_isBuffering) {
+                      setState(() {
+                        _isBuffering = true;
+                        _controller.stop();
+                      });
+                    }
+                  });
+                }
 
-        Widget imageWidget;
-        if (totalFrames == 1) {
-          imageWidget = _buildImage(widget.imagePaths.first);
-        } else {
-          final double exactFrame = value * (totalFrames - 1);
-          
-          if (widget.transitionBuilder == null) {
-            final int frameIndex = (value * totalFrames).floor().clamp(0, totalFrames - 1);
-            imageWidget = _buildImage(widget.imagePaths[frameIndex]);
-          } else {
-            final int currentFrameIndex = exactFrame.floor();
-            final int nextFrameIndex = (currentFrameIndex + 1) < totalFrames
-                ? currentFrameIndex + 1
-                : currentFrameIndex;
-            final double progressToNextFrame = exactFrame - currentFrameIndex;
-            imageWidget = widget.transitionBuilder!(
-              context,
-              _buildImage(widget.imagePaths[currentFrameIndex]),
-              _buildImage(widget.imagePaths[nextFrameIndex]),
-              progressToNextFrame,
-            );
-          }
-        }
-
-        if (widget.heroTag != null) {
-          imageWidget = Hero(tag: widget.heroTag!, child: imageWidget);
-        }
-
-        if (!widget.showControls) {
-          return SizedBox(width: widget.width, height: widget.height, child: imageWidget);
-        }
-
-        return MouseRegion(
-          onHover: (_) {
-            if (!_controlsVisible) {
-              setState(() {
-                _controlsVisible = true;
-                _startHideTimer();
-              });
-            }
-          },
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onTap: _toggleControls,
-                onDoubleTap: () {},
-                onDoubleTapDown: (details) {
-                  final double width = constraints.maxWidth;
-                  if (details.localPosition.dx < width / 2) {
-                    _seekRelative(-10);
+                Widget imageWidget;
+                if (totalFrames == 0) {
+                  imageWidget = const SizedBox.shrink();
+                } else if (totalFrames == 1) {
+                  imageWidget = _buildImage(widget.imagePaths.first);
+                } else {
+                  final double exactFrame = value * (totalFrames - 1);
+                  
+                  if (widget.transitionBuilder == null) {
+                    imageWidget = _buildImage(widget.imagePaths[frameIndex]);
                   } else {
-                    _seekRelative(10);
+                    final int currentFrameIndex = exactFrame.floor();
+                    final int nextFrameIndex = (currentFrameIndex + 1) < totalFrames
+                        ? currentFrameIndex + 1
+                        : currentFrameIndex;
+                    final double progressToNextFrame = exactFrame - currentFrameIndex;
+                    imageWidget = widget.transitionBuilder!(
+                      context,
+                      _buildImage(widget.imagePaths[currentFrameIndex]),
+                      _buildImage(widget.imagePaths[nextFrameIndex]),
+                      progressToNextFrame,
+                    );
                   }
-                },
-                child: SizedBox(
-                  width: widget.width,
-                  height: widget.height,
-                  child: Stack(
+                }
+
+                if (widget.heroTag != null) {
+                  imageWidget = Hero(tag: widget.heroTag!, child: imageWidget);
+                }
+
+                Widget content = imageWidget;
+
+                // Overlay buffer loader if necessary
+                if (_isBuffering) {
+                  content = Stack(
                     fit: StackFit.expand,
                     children: [
                       imageWidget,
-                      Center(
-                        child: AnimatedOpacity(
-                          opacity: _showOverlayIconVisible ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 200),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-                            child: Icon(_overlayIcon, size: 50, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      if (widget.isFullScreen)
-                        Positioned(
-                          top: 40,
-                          right: 20,
-                          child: AnimatedOpacity(
-                            opacity: _controlsVisible ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 300),
-                            child: IgnorePointer(
-                              ignoring: !_controlsVisible,
-                              child: IconButton(
-                                icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                                onPressed: () => Navigator.of(context).pop(),
-                              ),
-                            ),
-                          ),
-                        ),
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: AnimatedOpacity(
-                          opacity: _controlsVisible ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: IgnorePointer(
-                            ignoring: !_controlsVisible,
-                            child: _buildVideoControls(),
-                          ),
+                      Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white70),
                         ),
                       ),
                     ],
+                  );
+                }
+
+                if (!widget.showControls) {
+                  return SizedBox(width: widget.width, height: widget.height, child: content);
+                }
+
+                return MouseRegion(
+                  onHover: (_) {
+                    if (!_controlsVisible) {
+                      setState(() {
+                        _controlsVisible = true;
+                        _startHideTimer();
+                      });
+                    }
+                  },
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return GestureDetector(
+                        onTap: _toggleControls,
+                        onDoubleTap: () {},
+                        onDoubleTapDown: (details) {
+                          final double width = constraints.maxWidth;
+                          if (details.localPosition.dx < width / 2) {
+                            _seekRelative(-10);
+                          } else {
+                            _seekRelative(10);
+                          }
+                        },
+                        child: SizedBox(
+                          width: widget.width,
+                          height: widget.height,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              content,
+                              Center(
+                                child: AnimatedOpacity(
+                                  opacity: _showOverlayIconVisible ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                                    child: Icon(_overlayIcon, size: 50, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                              if (widget.isFullScreen)
+                                Positioned(
+                                  top: 40,
+                                  right: 20,
+                                  child: AnimatedOpacity(
+                                    opacity: _controlsVisible ? 1.0 : 0.0,
+                                    duration: const Duration(milliseconds: 300),
+                                    child: IgnorePointer(
+                                      ignoring: !_controlsVisible,
+                                      child: IconButton(
+                                        icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                                        onPressed: () => Navigator.of(context).pop(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: AnimatedOpacity(
+                                  opacity: _controlsVisible ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 300),
+                                  child: IgnorePointer(
+                                    ignoring: !_controlsVisible,
+                                    child: _buildVideoControls(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+                );
+              },
+            ),
     );
   }
 
   Widget _buildVideoControls() {
     final currentDuration = widget.duration * _controller.value;
+    
+    // Calculate contiguous buffer progress from current position
+    final int total = widget.imagePaths.length;
+    double bufferProgress = 0.0;
+    if (total > 0) {
+      final int currentFrame = (_controller.value * total).floor().clamp(0, total - 1);
+      int contiguousEnd = currentFrame;
+      while (contiguousEnd < total && _loadedIndices.contains(contiguousEnd)) {
+        contiguousEnd++;
+      }
+      bufferProgress = contiguousEnd / total;
+    }
 
     return Container(
       decoration: const BoxDecoration(
@@ -510,10 +607,14 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 2.0,
+                trackShape: BufferSliderTrackShape(
+                  bufferProgress: bufferProgress,
+                  bufferColor: (widget.activeColor ?? Colors.redAccent).withValues(alpha: 0.3),
+                ),
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
                 activeTrackColor: widget.activeColor ?? Colors.redAccent,
-                inactiveTrackColor: widget.inactiveColor ?? Colors.white24,
+                inactiveTrackColor: (widget.inactiveColor ?? Colors.white).withValues(alpha: 0.1),
                 thumbColor: widget.thumbColor ?? widget.activeColor ?? Colors.redAccent,
               ),
               child: Slider(
@@ -591,6 +692,72 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
           ),
         );
       },
+    );
+  }
+}
+
+class BufferSliderTrackShape extends RoundedRectSliderTrackShape {
+  final double bufferProgress;
+  final Color bufferColor;
+
+  BufferSliderTrackShape({required this.bufferProgress, required this.bufferColor});
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 2,
+  }) {
+    // 1. Paint the standard inactive and active track
+    super.paint(
+      context,
+      offset,
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      enableAnimation: enableAnimation,
+      textDirection: textDirection,
+      thumbCenter: thumbCenter,
+      secondaryOffset: secondaryOffset,
+      isDiscrete: isDiscrete,
+      isEnabled: isEnabled,
+      additionalActiveTrackHeight: additionalActiveTrackHeight,
+    );
+
+    if (bufferProgress <= 0) return;
+
+    // 2. Calculate the track rectangle
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+
+    // 3. Paint the buffer bar over the inactive track
+    final Paint bufferPaint = Paint()..color = bufferColor;
+    final double bufferWidth = trackRect.width * bufferProgress;
+
+    context.canvas.drawRRect(
+      RRect.fromLTRBAndCorners(
+        trackRect.left,
+        trackRect.top,
+        trackRect.left + bufferWidth,
+        trackRect.bottom,
+        topLeft: Radius.circular(trackRect.height / 2),
+        bottomLeft: Radius.circular(trackRect.height / 2),
+        topRight: bufferProgress >= 0.99 ? Radius.circular(trackRect.height / 2) : Radius.zero,
+        bottomRight: bufferProgress >= 0.99 ? Radius.circular(trackRect.height / 2) : Radius.zero,
+      ),
+      bufferPaint,
     );
   }
 }
