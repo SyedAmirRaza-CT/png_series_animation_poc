@@ -10,6 +10,12 @@ typedef PngSeriesTransitionBuilder = Widget Function(
   double progress,
 );
 
+typedef PngSubtitleBuilder = Widget Function(
+  BuildContext context,
+  SubtitleSegment? segment,
+  double currentTimeInSeconds,
+);
+
 class PngSeriesController extends ChangeNotifier {
   AnimationController? _animationController;
   bool _isPlaying = false;
@@ -61,6 +67,52 @@ class PngSeriesController extends ChangeNotifier {
   void dispose() {
     _detach();
     super.dispose();
+  }
+}
+
+class SubtitleSegment {
+  final double start;
+  final double end;
+  final String text;
+  final List<SubtitleWord> words;
+
+  SubtitleSegment({
+    required this.start,
+    required this.end,
+    required this.text,
+    required this.words,
+  });
+
+  factory SubtitleSegment.fromJson(Map<String, dynamic> json) {
+    return SubtitleSegment(
+      start: (json['start'] as num).toDouble(),
+      end: (json['end'] as num).toDouble(),
+      text: json['text'] as String,
+      words: (json['words'] as List<dynamic>?)
+              ?.map((w) => SubtitleWord.fromJson(w))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class SubtitleWord {
+  final double start;
+  final double end;
+  final String text;
+
+  SubtitleWord({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+
+  factory SubtitleWord.fromJson(Map<String, dynamic> json) {
+    return SubtitleWord(
+      start: (json['start'] as num).toDouble(),
+      end: (json['end'] as num).toDouble(),
+      text: json['text'] as String,
+    );
   }
 }
 
@@ -194,6 +246,7 @@ class PngSeriesAnimator extends StatefulWidget {
 
   // Subtitle property (Single variable control)
   final PngSubtitleController? subtitleController;
+  final PngSubtitleBuilder? subtitleBuilder;
 
   const PngSeriesAnimator({
     super.key,
@@ -217,6 +270,7 @@ class PngSeriesAnimator extends StatefulWidget {
     this.inactiveColor,
     this.thumbColor,
     this.subtitleController,
+    this.subtitleBuilder,
   }) : assert(imagePaths.length > 0, 'imagePaths cannot be empty');
 
   const PngSeriesAnimator.videoPlayer({
@@ -240,6 +294,7 @@ class PngSeriesAnimator extends StatefulWidget {
     this.inactiveColor,
     this.thumbColor,
     this.subtitleController,
+    this.subtitleBuilder,
   })  : showControls = true,
         assert(imagePaths.length > 0, 'imagePaths cannot be empty');
 
@@ -895,6 +950,11 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     final double currentTimeInSeconds = _controller.value * effectiveDuration.inSeconds;
 
     final segment = controller.getSegmentAt(currentTimeInSeconds);
+
+    if (widget.subtitleBuilder != null) {
+      return widget.subtitleBuilder!(context, segment, currentTimeInSeconds);
+    }
+
     if (segment == null) return const SizedBox.shrink();
 
     return Container(
@@ -1109,49 +1169,4 @@ class BufferSliderTrackShape extends RoundedRectSliderTrackShape {
   }
 }
 
-class SubtitleSegment {
-  final double start;
-  final double end;
-  final String text;
-  final List<SubtitleWord> words;
-
-  SubtitleSegment({
-    required this.start,
-    required this.end,
-    required this.text,
-    required this.words,
-  });
-
-  factory SubtitleSegment.fromJson(Map<String, dynamic> json) {
-    return SubtitleSegment(
-      start: (json['start'] as num).toDouble(),
-      end: (json['end'] as num).toDouble(),
-      text: json['text'] as String,
-      words: (json['words'] as List<dynamic>?)
-              ?.map((w) => SubtitleWord.fromJson(w))
-              .toList() ??
-          [],
-    );
-  }
-}
-
-class SubtitleWord {
-  final double start;
-  final double end;
-  final String text;
-
-  SubtitleWord({
-    required this.start,
-    required this.end,
-    required this.text,
-  });
-
-  factory SubtitleWord.fromJson(Map<String, dynamic> json) {
-    return SubtitleWord(
-      start: (json['start'] as num).toDouble(),
-      end: (json['end'] as num).toDouble(),
-      text: json['text'] as String,
-    );
-  }
-}
 

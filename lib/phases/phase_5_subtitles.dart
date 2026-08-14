@@ -233,6 +233,36 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
             fit: BoxFit.contain,
             onPlayStateChanged: _handleSyncPlayPause,
             onSeek: _handleSyncSeek,
+            subtitleBuilder: (context, segment, currentTime) {
+              if (segment == null) return const SizedBox.shrink();
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    children: segment.words.map((word) {
+                      final bool isCurrent = currentTime >= word.start && currentTime <= word.end;
+                      final bool isPast = currentTime > word.end;
+
+                      return TextSpan(
+                        text: "${word.text} ",
+                        style: TextStyle(
+                          color: isCurrent ? Colors.yellowAccent : (isPast ? Colors.white : Colors.white38),
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                          fontSize: isCurrent ? 18 : 18,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         Expanded(
@@ -296,7 +326,7 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
               double fontSize = 16;
 
               if (isCurrent) {
-                textColor = Colors.cyan;
+                textColor = Colors.yellowAccent;
                 fontWeight = FontWeight.bold;
                 fontSize = 18;
               } else if (isPast) {
