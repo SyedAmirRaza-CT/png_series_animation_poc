@@ -214,6 +214,8 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
   bool _isDownloading = false;
   double _progress = 0;
   bool _isInstalled = false;
+  int _installedVersion = 0;
+  int _targetVersion = 1;
   List<String> _localImagePaths = [];
   int _totalFiles = 0;
 
@@ -228,22 +230,40 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
     if (installed) {
       final images = await _service.getAllImages(_bundleId);
       final allEntities = await _service.listFiles(_bundleId, '');
-      setState(() {
-        _isInstalled = true;
-        _totalFiles = allEntities.length;
-        _localImagePaths = images;
-      });
+      try {
+        final metadata = await _service.getBundleMetadata(_bundleId);
+        setState(() {
+          _isInstalled = true;
+          _installedVersion = metadata.version;
+          _totalFiles = allEntities.length;
+          _localImagePaths = images;
+          // Ensure target version is at least the installed version
+          if (_targetVersion < _installedVersion) {
+            _targetVersion = _installedVersion;
+          }
+        });
+      } catch (e) {
+        debugPrint('Error reading metadata: $e');
+        setState(() {
+          _isInstalled = true;
+          _installedVersion = 0; // Unknown
+          _totalFiles = allEntities.length;
+          _localImagePaths = images;
+        });
+      }
     } else {
       setState(() {
         _isInstalled = false;
+        _installedVersion = 0;
         _totalFiles = 0;
         _localImagePaths = [];
       });
     }
   }
 
-  Future<void> _handleDownload() async {
-    debugPrint('UI: Download button clicked');
+  Future<void> _handleDownload({int? version}) async {
+    final targetVer = version ?? _targetVersion;
+    debugPrint('UI: Download/Update button clicked for v$targetVer');
     setState(() {
       _isDownloading = true;
       _progress = 0;
@@ -254,14 +274,13 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
       await _service.downloadBundle(
         bundleId: _bundleId,
         url: _zipUrl,
-        version: 1,
+        version: targetVer,
         onProgress: (received, total) {
           if (mounted) {
             setState(() {
               if (total > 0) {
                 _progress = received / total;
               } else {
-                // If total is unknown, we use a negative value to signal indeterminate state to UI
                 _progress = -1.0; 
               }
             });
@@ -272,7 +291,7 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
       await _checkStatus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bundle installed successfully!')),
+          SnackBar(content: Text('Bundle v$targetVer installed successfully!')),
         );
       }
     } catch (e) {
@@ -327,7 +346,7 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isInstalled ? 'Status: INSTALLED' : 'Status: NOT DOWNLOADED',
+                    _isInstalled ? 'Status: INSTALLED (v$_installedVersion)' : 'Status: NOT DOWNLOADED',
                     style: TextStyle(
                       color: _isInstalled ? Colors.green : Colors.orange,
                     ),
@@ -348,11 +367,23 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
             ),
           ] else if (!_isInstalled)
             ElevatedButton.icon(
-              onPressed: _handleDownload,
+              onPressed: () => _handleDownload(version: _targetVersion),
               icon: const Icon(Icons.download),
-              label: const Text('Download Bundle (v1)'),
+              label: Text('Download Bundle (v$_targetVersion)'),
             )
           else ...[
+            if (_installedVersion < _targetVersion) ...[
+              ElevatedButton.icon(
+                onPressed: () => _handleDownload(version: _targetVersion),
+                icon: const Icon(Icons.system_update),
+                label: Text('Update Bundle to v$_targetVersion'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyan.shade700,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             ElevatedButton.icon(
               onPressed: _handleDelete,
               icon: const Icon(Icons.delete, color: Colors.white),
@@ -360,7 +391,21 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
             ),
             const SizedBox(height: 20),
-            Text('Extracted Items: $_totalFiles', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Extracted Items: $_totalFiles', style: const TextStyle(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _targetVersion++;
+                    });
+                  },
+                  icon: const Icon(Icons.add_alert, size: 16),
+                  label: const Text('Simulate New Version', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             if (_localImagePaths.isEmpty)
               const Center(child: Padding(
