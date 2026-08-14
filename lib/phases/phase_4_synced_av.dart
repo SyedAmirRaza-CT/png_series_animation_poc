@@ -54,6 +54,11 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
           _totalDuration = dur;
           _isReady = true;
         });
+
+        // Phase 4 Autoplay using the controller
+        if (_isInstalled && !_isPlaying) {
+          _pngController.play();
+        }
       }
     });
 
@@ -136,6 +141,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
   }
 
   Future<void> _handleSyncPlayPause(bool playing) async {
+    debugPrint('Phase 4: Sync Play/Pause called with: $playing');
     if (playing) {
       if (_audioPath != null) {
         await _audioPlayer.play(DeviceFileSource(_audioPath!));

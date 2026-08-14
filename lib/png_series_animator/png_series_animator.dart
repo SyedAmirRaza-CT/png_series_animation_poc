@@ -14,9 +14,8 @@ class PngSeriesController extends ChangeNotifier {
   AnimationController? _animationController;
   bool _isPlaying = false;
 
-  void _attach(AnimationController controller, bool isPlaying) {
+  void _attach(AnimationController controller) {
     _animationController = controller;
-    _isPlaying = isPlaying;
     _animationController!.addListener(_onControllerTick);
   }
 
@@ -164,14 +163,29 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   @override
   void initState() {
     super.initState();
-    _isPlaying = widget.isPlaying;
+    
     _controller = AnimationController(
       vsync: this,
       duration: widget.duration,
       value: widget.initialValue,
     );
 
-    widget.controller?._attach(_controller, _isPlaying);
+    // If a controller is provided, it becomes the source of truth for the initial play state
+    if (widget.controller != null) {
+      _isPlaying = widget.controller!.isPlaying;
+      widget.controller?._attach(_controller);
+      widget.controller?.addListener(_onControllerChanged);
+      
+      // If we are starting in play mode, notify the parent (Phase 4) 
+      // so it can start the synced audio.
+      if (_isPlaying && widget.onPlayStateChanged != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onPlayStateChanged!(true);
+        });
+      }
+    } else {
+      _isPlaying = widget.isPlaying;
+    }
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -191,6 +205,21 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     
     if (widget.showControls) {
       _startHideTimer();
+    }
+  }
+
+  void _onControllerChanged() {
+    if (widget.controller != null && widget.controller!.isPlaying != _isPlaying) {
+      setState(() {
+        _isPlaying = widget.controller!.isPlaying;
+        _updateAnimationState();
+      });
+      _fullScreenEntry?.markNeedsBuild();
+
+      // Notify the parent (Phase 4) to play/pause the audio
+      if (widget.onPlayStateChanged != null) {
+        widget.onPlayStateChanged!(_isPlaying);
+      }
     }
   }
 
@@ -480,6 +509,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     _overlayTimer?.cancel();
     _fullScreenEntry?.remove();
     _fullScreenEntry = null;
+    widget.controller?.removeListener(_onControllerChanged);
     widget.controller?._detach();
     _controller.dispose();
     super.dispose();
