@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:png_series_animation_poc/png_series_animator.dart';
+import 'package:png_series_animation_poc/png_series_animator/png_series_animator.dart';
 
 void main() {
   testWidgets('PngSeriesAnimator once behavior calls onCompleted', (WidgetTester tester) async {

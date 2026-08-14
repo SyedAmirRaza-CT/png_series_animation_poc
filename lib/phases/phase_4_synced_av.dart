@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path/path.dart' as p;
-import 'png_series_animator.dart';
-import 'services/asset_bundle_service.dart';
+import '../png_series_animator/png_series_animator.dart';
+import '../asset_bundle_manager/asset_bundle_manager.dart';
 
 class SyncedPlaybackDemo extends StatefulWidget {
   const SyncedPlaybackDemo({super.key});
@@ -13,28 +13,23 @@ class SyncedPlaybackDemo extends StatefulWidget {
 }
 
 class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProviderStateMixin {
-  final _service = AssetBundleService();
+  final _service = AssetBundleManager();
   final _audioPlayer = AudioPlayer();
-  
+
   final _pngController = PngSeriesController();
-  
+
   final String _bundleId = 'synced_bundle_v1';
-  // Using a test URL that contains both images and a small audio file
-  // For POC purposes, we use the same yolov5 bundle as a placeholder, but in practice, 
-  // you would point this to a ZIP containing images/ and an audio.mp3
   final String _zipUrl = 'https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip';
-  
-  // Local asset fallback (must exist in assets/audio/default_sync.mp3)
   final String _fallbackAudioAsset = 'audio/default_sync.mp3';
 
   bool _isDownloading = false;
   double _downloadProgress = 0;
   bool _isInstalled = false;
-  
+
   List<String> _imagePaths = [];
   String? _audioPath;
-  Duration _totalDuration = const Duration(seconds: 10); // Default, will update from audio
-  
+  Duration _totalDuration = const Duration(seconds: 10);
+
   bool _isReady = false;
   bool _isPlaying = false;
 
@@ -46,11 +41,9 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
   }
 
   void _setupAudioListeners() {
-    // Master Sync: Audio drives the Animation Controller
     _audioPlayer.onPositionChanged.listen((pos) {
       if (_isPlaying && mounted) {
         final double value = pos.inMilliseconds / _totalDuration.inMilliseconds;
-        // Update controller directly to match audio exactly
         _pngController.seekTo(value.clamp(0.0, 1.0));
       }
     });
@@ -59,8 +52,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
       if (mounted && dur.inMilliseconds > 0) {
         setState(() {
           _totalDuration = dur;
-          // NOW we are ready to show the UI because we know the length
-          _isReady = true; 
+          _isReady = true;
         });
       }
     });
@@ -86,19 +78,18 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
     if (installed) {
       final images = await _service.getAllImages(_bundleId);
       final audioFiles = await _service.getAllAudio(_bundleId);
-      
+
       setState(() {
         _isInstalled = true;
         _imagePaths = images;
         if (audioFiles.isNotEmpty) {
           _audioPath = audioFiles.first;
-          // Don't set _isReady yet - wait for AudioPlayer to load and give us duration
-          _prepareAudio(); 
+          _prepareAudio();
         } else {
-          // Fallback to local asset
           _audioPath = null;
           _prepareAudio();
         }
+
       });
     }
   }
@@ -110,7 +101,6 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
       } else {
         await _audioPlayer.setSource(AssetSource(_fallbackAudioAsset));
       }
-      // AudioPlayer will trigger onDurationChanged which will set _isReady = true
     } catch (e) {
       debugPrint('Error preparing audio: $e');
     }
@@ -174,7 +164,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
     return Scaffold(
       appBar: AppBar(title: const Text('Synced AV Playback')),
       body: Center(
-        child: _isInstalled 
+        child: _isInstalled
           ? _buildPlayer()
           : _buildDownloadPrompt(),
       ),
@@ -213,8 +203,8 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
           child: Column(
             children: [
               Text(
-                _audioPath != null 
-                  ? 'Audio: ${p.basename(_audioPath!)} (Bundle)' 
+                _audioPath != null
+                  ? 'Audio: ${p.basename(_audioPath!)} (Bundle)'
                   : 'Audio: $_fallbackAudioAsset (Local Asset)',
                 style: const TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold),
               ),

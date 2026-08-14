@@ -5,9 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive.dart';
-import '../models/bundle_metadata.dart';
+import 'bundle_metadata.dart';
 
-/// Exceptions for AssetBundleService
+/// Exceptions for AssetBundleManager
 class AssetBundleException implements Exception {
   final String message;
   final dynamic originalError;
@@ -28,10 +28,10 @@ class BundleNotFoundException extends AssetBundleException {
   BundleNotFoundException(String message) : super(message);
 }
 
-class AssetBundleService {
-  static final AssetBundleService _instance = AssetBundleService._internal();
-  factory AssetBundleService() => _instance;
-  AssetBundleService._internal();
+class AssetBundleManager {
+  static final AssetBundleManager _instance = AssetBundleManager._internal();
+  factory AssetBundleManager() => _instance;
+  AssetBundleManager._internal();
 
   static const String _bundlesDirName = 'asset_bundles';
   static const String _filesDirName = 'files';
@@ -134,15 +134,15 @@ class AssetBundleService {
     required int version,
     void Function(int received, int total)? onProgress,
   }) async {
-    debugPrint('AssetBundleService: Starting download for $bundleId from $url');
+    debugPrint('AssetBundleManager: Starting download for $bundleId from $url');
     // 1. Check if already installed
     if (await isBundleVersionInstalled(bundleId, version)) {
-      debugPrint('AssetBundleService: Bundle $bundleId v$version already installed.');
+      debugPrint('AssetBundleManager: Bundle $bundleId v$version already installed.');
       return;
     }
 
     final rootDir = await _getRootDir();
-    debugPrint('AssetBundleService: Root directory: $rootDir');
+    debugPrint('AssetBundleManager: Root directory: $rootDir');
     
     final tempDir = Directory(p.join(rootDir, _tempDirName));
     if (!await tempDir.exists()) {
@@ -154,22 +154,22 @@ class AssetBundleService {
 
     try {
       // 2. Download ZIP
-      debugPrint('AssetBundleService: Downloading ZIP to ${tempZipFile.path}...');
+      debugPrint('AssetBundleManager: Downloading ZIP to ${tempZipFile.path}...');
       await _downloadFile(url, tempZipFile, onProgress);
-      debugPrint('AssetBundleService: Download complete. Size: ${await tempZipFile.length()} bytes');
+      debugPrint('AssetBundleManager: Download complete. Size: ${await tempZipFile.length()} bytes');
 
       // 3. Extract ZIP to temp location
-      debugPrint('AssetBundleService: Extracting ZIP to ${extractionDir.path}...');
+      debugPrint('AssetBundleManager: Extracting ZIP to ${extractionDir.path}...');
       if (await extractionDir.exists()) {
         await extractionDir.delete(recursive: true);
       }
       await extractionDir.create(recursive: true);
 
       await _extractZip(tempZipFile, extractionDir);
-      debugPrint('AssetBundleService: Extraction complete.');
+      debugPrint('AssetBundleManager: Extraction complete.');
 
       // 4. Create metadata
-      debugPrint('AssetBundleService: Saving metadata...');
+      debugPrint('AssetBundleManager: Saving metadata...');
       final metadata = BundleMetadata(
         bundleId: bundleId,
         version: version,
@@ -181,7 +181,7 @@ class AssetBundleService {
       await metadataFile.writeAsString(metadata.toRawJson());
 
       // 5. Atomic-ish Swap
-      debugPrint('AssetBundleService: Finalizing installation...');
+      debugPrint('AssetBundleManager: Finalizing installation...');
       final finalBundlePath = await getBundlePath(bundleId);
       final backupPath = p.join(rootDir, '${bundleId}_old');
 
@@ -201,9 +201,9 @@ class AssetBundleService {
         await tempZipFile.delete();
       }
 
-      debugPrint('AssetBundleService: Successfully installed $bundleId v$version');
+      debugPrint('AssetBundleManager: Successfully installed $bundleId v$version');
     } catch (e, stack) {
-      debugPrint('AssetBundleService: ERROR during installation: $e');
+      debugPrint('AssetBundleManager: ERROR during installation: $e');
       debugPrint(stack.toString());
       // Cleanup on failure
       if (await extractionDir.exists()) await extractionDir.delete(recursive: true);
@@ -227,23 +227,21 @@ class AssetBundleService {
       
       var currentUrl = url;
       http.StreamedResponse? response;
-      bool redirected = false;
 
       // Handle up to 5 redirects manually to support GitHub/Cloudinary redirects
       for (int i = 0; i < 5; i++) {
         final request = http.Request('GET', Uri.parse(currentUrl));
-        request.headers['User-Agent'] = 'Flutter-AssetBundleService';
+        request.headers['User-Agent'] = 'Flutter-AssetBundleManager';
         request.followRedirects = false; // We check manually to log
         
         response = await client.send(request);
-        debugPrint('AssetBundleService: HTTP Status: ${response.statusCode} for $currentUrl');
+        debugPrint('AssetBundleManager: HTTP Status: ${response.statusCode} for $currentUrl');
 
         if (response.statusCode >= 300 && response.statusCode < 400) {
           final location = response.headers['location'];
           if (location != null) {
             currentUrl = Uri.parse(currentUrl).resolve(location).toString();
-            redirected = true;
-            debugPrint('AssetBundleService: Redirecting to $currentUrl');
+            debugPrint('AssetBundleManager: Redirecting to $currentUrl');
             continue;
           }
         }
@@ -269,10 +267,10 @@ class AssetBundleService {
           int percent = ((received / total) * 100).floor();
           if (percent > lastLogPercent) {
             lastLogPercent = percent;
-            debugPrint('AssetBundleService: Download Progress: $percent% ($received/$total)');
+            debugPrint('AssetBundleManager: Download Progress: $percent% ($received/$total)');
           }
         } else if (received % (1024 * 500) == 0) { // Log every 500KB if total unknown
-           debugPrint('AssetBundleService: Download Progress: $received bytes (Total unknown)');
+           debugPrint('AssetBundleManager: Download Progress: $received bytes (Total unknown)');
         }
 
         if (onProgress != null) {
@@ -282,7 +280,7 @@ class AssetBundleService {
       
       await sink.close();
     } catch (e) {
-      debugPrint('AssetBundleService: Download Stream Error: $e');
+      debugPrint('AssetBundleManager: Download Stream Error: $e');
       throw BundleDownloadException('Network failure during download', e);
     } finally {
       client.close();
@@ -306,7 +304,7 @@ class AssetBundleService {
         // Security: Prevent Zip Slip (Path Traversal)
         final targetPath = p.normalize(p.join(filesDir, filename));
         if (!p.isWithin(filesDir, targetPath)) {
-          debugPrint('AssetBundleService: SECURITY WARNING - Skipping invalid ZIP path: $filename');
+          debugPrint('AssetBundleManager: SECURITY WARNING - Skipping invalid ZIP path: $filename');
           continue;
         }
 
