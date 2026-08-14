@@ -336,7 +336,49 @@ class AssetBundleService {
 
     return dir
         .list(recursive: true)
-        .where((entity) => entity is File && (entity.path.endsWith('.png') || entity.path.endsWith('.jpg') || entity.path.endsWith('.jpeg')))
+        .where((entity) =>
+            entity is File &&
+            (entity.path.toLowerCase().endsWith('.png') ||
+                entity.path.toLowerCase().endsWith('.jpg') ||
+                entity.path.toLowerCase().endsWith('.jpeg') ||
+                entity.path.toLowerCase().endsWith('.webp')))
+        .map((entity) => entity.path)
+        .toList();
+  }
+
+  /// Helper to get all audio paths in a bundle recursively
+  Future<List<String>> getAllAudio(String bundleId) async {
+    final filesPath = await _getBundleFilesPath(bundleId);
+    final dir = Directory(filesPath);
+    if (!await dir.exists()) return [];
+
+    return dir
+        .list(recursive: true)
+        .where((entity) =>
+            entity is File &&
+            (entity.path.toLowerCase().endsWith('.mp3') ||
+                entity.path.toLowerCase().endsWith('.wav') ||
+                entity.path.toLowerCase().endsWith('.m4a') ||
+                entity.path.toLowerCase().endsWith('.aac') ||
+                entity.path.toLowerCase().endsWith('.ogg')))
+        .map((entity) => entity.path)
+        .toList();
+  }
+
+  /// Helper to get all video paths in a bundle recursively
+  Future<List<String>> getAllVideo(String bundleId) async {
+    final filesPath = await _getBundleFilesPath(bundleId);
+    final dir = Directory(filesPath);
+    if (!await dir.exists()) return [];
+
+    return dir
+        .list(recursive: true)
+        .where((entity) =>
+            entity is File &&
+            (entity.path.toLowerCase().endsWith('.mp4') ||
+                entity.path.toLowerCase().endsWith('.mov') ||
+                entity.path.toLowerCase().endsWith('.mkv') ||
+                entity.path.toLowerCase().endsWith('.webm')))
         .map((entity) => entity.path)
         .toList();
   }
