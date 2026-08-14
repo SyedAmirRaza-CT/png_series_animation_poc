@@ -10,6 +10,61 @@ typedef PngSeriesTransitionBuilder = Widget Function(
   double progress,
 );
 
+class PngSeriesController extends ChangeNotifier {
+  AnimationController? _animationController;
+  bool _isPlaying = false;
+
+  void _attach(AnimationController controller, bool isPlaying) {
+    _animationController = controller;
+    _isPlaying = isPlaying;
+    _animationController!.addListener(_onControllerTick);
+  }
+
+  void _detach() {
+    _animationController?.removeListener(_onControllerTick);
+    _animationController = null;
+  }
+
+  void _onControllerTick() {
+    notifyListeners();
+  }
+
+  /// Starts playback
+  void play() {
+    _isPlaying = true;
+    _animationController?.forward();
+    notifyListeners();
+  }
+
+  /// Pauses playback
+  void pause() {
+    _isPlaying = false;
+    _animationController?.stop();
+    notifyListeners();
+  }
+
+  /// Seeks to a specific progress (0.0 to 1.0)
+  void seekTo(double value) {
+    _animationController?.value = value.clamp(0.0, 1.0);
+    notifyListeners();
+  }
+
+  /// Current progress of the animation (0.0 to 1.0)
+  double get value => _animationController?.value ?? 0.0;
+
+  /// Whether the animation is currently playing
+  bool get isPlaying => _isPlaying;
+
+  /// Access to the raw AnimationController (useful for advanced syncing)
+  AnimationController? get animationController => _animationController;
+
+  @override
+  void dispose() {
+    _detach();
+    super.dispose();
+  }
+}
+
 class PngSeriesAnimator extends StatefulWidget {
   final List<String> imagePaths;
   final Duration duration;
@@ -21,6 +76,9 @@ class PngSeriesAnimator extends StatefulWidget {
   final PngSeriesTransitionBuilder? transitionBuilder;
   final VoidCallback? onCompleted;
   final Object? heroTag;
+  final PngSeriesController? controller;
+  final ValueChanged<bool>? onPlayStateChanged;
+  final ValueChanged<double>? onSeek;
 
   // Video Player specific properties
   final bool showControls;
@@ -42,6 +100,9 @@ class PngSeriesAnimator extends StatefulWidget {
     this.transitionBuilder,
     this.onCompleted,
     this.heroTag,
+    this.controller,
+    this.onPlayStateChanged,
+    this.onSeek,
     this.showControls = false,
     this.isFullScreen = false,
     this.initialValue = 0.0,
@@ -62,6 +123,9 @@ class PngSeriesAnimator extends StatefulWidget {
     this.transitionBuilder,
     this.onCompleted,
     this.heroTag,
+    this.controller,
+    this.onPlayStateChanged,
+    this.onSeek,
     this.initialValue = 0.0,
     this.isFullScreen = false,
     this.activeColor,
@@ -89,6 +153,8 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   bool _wasPlayingBeforeDrag = false;
   bool _controlsVisible = true;
   Timer? _hideTimer;
+  bool _isFullScreenInternal = false;
+  OverlayEntry? _fullScreenEntry;
 
   // State for play/pause animation overlay
   bool _showOverlayIconVisible = false;
@@ -104,6 +170,8 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       duration: widget.duration,
       value: widget.initialValue,
     );
+
+    widget.controller?._attach(_controller, _isPlaying);
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -305,6 +373,10 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       _updateAnimationState();
       _showOverlayIcon(icon: _isPlaying ? Icons.play_arrow : Icons.pause);
 
+      if (widget.onPlayStateChanged != null) {
+        widget.onPlayStateChanged!(_isPlaying);
+      }
+
       if (_isPlaying) {
         _startHideTimer();
       } else {
@@ -330,11 +402,16 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   }
 
   void _seekRelative(int seconds) {
-    final double delta = seconds / widget.duration.inSeconds;
+    final Duration effectiveDuration = _controller.duration ?? widget.duration;
+    final double delta = seconds / effectiveDuration.inSeconds;
     final double newValue = (_controller.value + delta).clamp(0.0, 1.0);
     setState(() {
       _controller.value = newValue;
     });
+    
+    if (widget.onSeek != null) {
+      widget.onSeek!(newValue);
+    }
     
     if (_isPlaying) {
       _updateAnimationState();
@@ -345,13 +422,19 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   }
 
   void _toggleFullScreen() async {
-    if (widget.isFullScreen) {
-      Navigator.of(context).pop();
-      return;
+    if (_isFullScreenInternal) {
+      _exitFullScreen();
+    } else {
+      _enterFullScreen();
     }
+  }
+
+  void _enterFullScreen() {
+    setState(() {
+      _isFullScreenInternal = true;
+    });
 
     final bool isLandscape = (_aspectRatio ?? 1.0) > 1.0;
-
     if (isLandscape) {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
@@ -360,41 +443,27 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
 
-    await Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierDismissible: true,
-        pageBuilder: (context, animation, secondaryAnimation) => Scaffold(
-          backgroundColor: Colors.black,
-          body: Center(
-            child: PngSeriesAnimator.videoPlayer(
-              imagePaths: widget.imagePaths,
-              duration: widget.duration,
-              repeat: widget.repeat,
-              isPlaying: _isPlaying,
-              fit: BoxFit.contain,
-              initialValue: _controller.value,
-              isFullScreen: true,
-              heroTag: widget.heroTag,
-              activeColor: widget.activeColor,
-              inactiveColor: widget.inactiveColor,
-              thumbColor: widget.thumbColor,
-            ),
-          ),
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+    _fullScreenEntry = OverlayEntry(
+      builder: (context) => Material(
+        color: Colors.black,
+        child: _buildMainContent(isFullScreen: true),
       ),
     );
 
-    // Reset orientations and UI mode when returning from full screen
-    // Force the app back to portrait mode (only Up for maximum compatibility)
+    Overlay.of(context).insert(_fullScreenEntry!);
+  }
+
+  void _exitFullScreen() async {
+    _fullScreenEntry?.remove();
+    _fullScreenEntry = null;
+
+    setState(() {
+      _isFullScreenInternal = false;
+    });
+
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
-
-    // Always restore the system UI (status bar and navigation bar)
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
@@ -409,12 +478,26 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   void dispose() {
     _hideTimer?.cancel();
     _overlayTimer?.cancel();
+    _fullScreenEntry?.remove();
+    _fullScreenEntry = null;
+    widget.controller?._detach();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isFullScreenInternal) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: const Center(child: Text('Playing in Full Screen', style: TextStyle(color: Colors.grey))),
+      );
+    }
+    return _buildMainContent(isFullScreen: false);
+  }
+
+  Widget _buildMainContent({required bool isFullScreen}) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 500),
       child: !_precached
@@ -440,6 +523,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                         _isBuffering = true;
                         _controller.stop();
                       });
+                      _fullScreenEntry?.markNeedsBuild();
                     }
                   });
                 }
@@ -502,6 +586,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                         _controlsVisible = true;
                         _startHideTimer();
                       });
+                      _fullScreenEntry?.markNeedsBuild();
                     }
                   },
                   child: LayoutBuilder(
@@ -518,8 +603,8 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                           }
                         },
                         child: SizedBox(
-                          width: widget.width,
-                          height: widget.height,
+                          width: isFullScreen ? null : widget.width,
+                          height: isFullScreen ? null : widget.height,
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
@@ -535,7 +620,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                                   ),
                                 ),
                               ),
-                              if (widget.isFullScreen)
+                              if (isFullScreen)
                                 Positioned(
                                   top: 40,
                                   right: 20,
@@ -546,7 +631,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                                       ignoring: !_controlsVisible,
                                       child: IconButton(
                                         icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                                        onPressed: () => Navigator.of(context).pop(),
+                                        onPressed: _exitFullScreen,
                                       ),
                                     ),
                                   ),
@@ -560,7 +645,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                                   duration: const Duration(milliseconds: 300),
                                   child: IgnorePointer(
                                     ignoring: !_controlsVisible,
-                                    child: _buildVideoControls(),
+                                    child: _buildVideoControls(isFullScreen),
                                   ),
                                 ),
                               ),
@@ -576,8 +661,9 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     );
   }
 
-  Widget _buildVideoControls() {
-    final currentDuration = widget.duration * _controller.value;
+  Widget _buildVideoControls(bool isFullScreen) {
+    final Duration effectiveDuration = _controller.duration ?? widget.duration;
+    final currentDuration = effectiveDuration * _controller.value;
     
     // Calculate contiguous buffer progress from current position
     final int total = widget.imagePaths.length;
@@ -635,6 +721,9 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                   setState(() {
                     _controller.value = val;
                   });
+                  if (widget.onSeek != null) {
+                    widget.onSeek!(val);
+                  }
                 },
               ),
             ),
@@ -645,7 +734,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                   onPressed: _togglePlayPause,
                 ),
                 Text(
-                  '${_formatDuration(currentDuration)} / ${_formatDuration(widget.duration)}',
+                  '${_formatDuration(currentDuration)} / ${_formatDuration(effectiveDuration)}',
                   style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),

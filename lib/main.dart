@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'png_series_animator.dart';
 import 'utils/image_cache_manager.dart';
 import 'services/asset_bundle_service.dart';
+import 'synced_playback_demo.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 
@@ -69,6 +70,16 @@ class HomeScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const AssetBundleDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 4: Synced AV',
+                subtitle: 'Synced Images & Audio Bundle',
+                icon: Icons.sync,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SyncedPlaybackDemo()),
                 ),
               ),
               const SizedBox(height: 40),
