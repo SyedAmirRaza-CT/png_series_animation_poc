@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import '../utils/image_cache_manager.dart';
 
 typedef PngSeriesTransitionBuilder = Widget Function(
@@ -470,7 +472,11 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
         } else {
           provider = NetworkImage(path);
         }
+      } else if (p.isAbsolute(path)) {
+        // Absolute file path from a downloaded bundle
+        provider = FileImage(File(path));
       } else {
+        // Bundled asset
         provider = AssetImage(path);
       }
 

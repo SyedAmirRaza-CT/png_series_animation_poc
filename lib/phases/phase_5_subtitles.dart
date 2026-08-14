@@ -100,8 +100,8 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
       // 1. Try to load subtitles from bundle
       if (subtitleFiles.isNotEmpty) {
         try {
-          debugPrint('Phase 5: Loading subtitles from bundle: ${subtitleFiles.first}');
-          final data = await _service.getJsonFile(_bundleId, p.relative(subtitleFiles.first, from: await _service.getBundlePath(_bundleId)).replaceFirst('files/', ''));
+          debugPrint('Phase 5: Loading subtitles from bundle path: ${subtitleFiles.first}');
+          final data = await _service.getJsonFromAbsolutePath(subtitleFiles.first);
           _subtitleController.updateData(data, initialLanguage: 'en');
         } catch (e) {
           debugPrint('Error loading bundle subtitles: $e');
@@ -237,7 +237,7 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
               if (segment == null) return const SizedBox.shrink();
 
               return Container(
-                margin: const EdgeInsets.only(bottom: 20),
+                margin: const EdgeInsets.only(bottom: 0),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.7),

@@ -396,9 +396,14 @@ class AssetBundleManager {
         .toList();
   }
 
-  /// Reads a subtitle/JSON file from the bundle
+  /// Reads a subtitle/JSON file from the bundle using a relative path
   Future<Map<String, dynamic>> getJsonFile(String bundleId, String relativePath) async {
     final path = await getFilePath(bundleId, relativePath);
+    return getJsonFromAbsolutePath(path);
+  }
+
+  /// Reads a JSON file from an absolute path
+  Future<Map<String, dynamic>> getJsonFromAbsolutePath(String path) async {
     final file = File(path);
     if (!await file.exists()) {
       throw AssetBundleException('JSON file not found: $path');
