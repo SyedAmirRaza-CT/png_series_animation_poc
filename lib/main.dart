@@ -4,6 +4,7 @@ import 'phases/phase_1_local.dart';
 import 'phases/phase_2_network.dart';
 import 'phases/phase_3_on_demand.dart';
 import 'phases/phase_4_synced_av.dart';
+import 'phases/phase_5_subtitles.dart';
 
 void main() {
   runApp(const MyApp());
@@ -79,6 +80,16 @@ class HomeScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const SyncedPlaybackDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 5: Subtitles & Highlights',
+                subtitle: 'Word-level sync & Multi-language',
+                icon: Icons.subtitles,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Phase5SubtitlesDemo()),
                 ),
               ),
               const SizedBox(height: 40),

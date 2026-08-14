@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -17,15 +18,15 @@ class AssetBundleException implements Exception {
 }
 
 class BundleDownloadException extends AssetBundleException {
-  BundleDownloadException(String message, [dynamic error]) : super(message, error);
+  BundleDownloadException(super.message, [super.error]);
 }
 
 class BundleExtractionException extends AssetBundleException {
-  BundleExtractionException(String message, [dynamic error]) : super(message, error);
+  BundleExtractionException(super.message, [super.error]);
 }
 
 class BundleNotFoundException extends AssetBundleException {
-  BundleNotFoundException(String message) : super(message);
+  BundleNotFoundException(super.message);
 }
 
 class AssetBundleManager {
@@ -379,6 +380,31 @@ class AssetBundleManager {
                 entity.path.toLowerCase().endsWith('.webm')))
         .map((entity) => entity.path)
         .toList();
+  }
+
+  /// Helper to get all subtitle/json paths in a bundle recursively
+  Future<List<String>> getAllSubtitles(String bundleId) async {
+    final filesPath = await _getBundleFilesPath(bundleId);
+    final dir = Directory(filesPath);
+    if (!await dir.exists()) return [];
+
+    return dir
+        .list(recursive: true)
+        .where((entity) =>
+            entity is File && entity.path.toLowerCase().endsWith('.json') && !entity.path.endsWith('metadata.json'))
+        .map((entity) => entity.path)
+        .toList();
+  }
+
+  /// Reads a subtitle/JSON file from the bundle
+  Future<Map<String, dynamic>> getJsonFile(String bundleId, String relativePath) async {
+    final path = await getFilePath(bundleId, relativePath);
+    final file = File(path);
+    if (!await file.exists()) {
+      throw AssetBundleException('JSON file not found: $path');
+    }
+    final content = await file.readAsString();
+    return json.decode(content);
   }
 
   /// Deletes an entire bundle and its metadata
