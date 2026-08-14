@@ -222,7 +222,8 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
 
     return Column(
       children: [
-        Expanded(
+        SizedBox(
+          height: 300,
           child: PngSeriesAnimator.videoPlayer(
             imagePaths: _imagePaths,
             controller: _pngController,
@@ -234,8 +235,14 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
             onSeek: _handleSyncSeek,
           ),
         ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: _buildTranscript(),
+          ),
+        ),
         Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10),
           child: Column(
             children: [
               Text(
@@ -262,6 +269,54 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTranscript() {
+    return ListenableBuilder(
+      listenable: Listenable.merge([_pngController, _subtitleController]),
+      builder: (context, child) {
+        final double currentTime = _pngController.value * _totalDuration.inSeconds;
+        final segments = _subtitleController.currentSegments;
+
+        if (segments.isEmpty) {
+          return const Center(child: Text('No transcript available for this language.'));
+        }
+
+        return Wrap(
+          spacing: 4,
+          runSpacing: 8,
+          children: segments.expand((segment) {
+            return segment.words.map((word) {
+              final bool isCurrent = currentTime >= word.start && currentTime <= word.end;
+              final bool isPast = currentTime > word.end;
+
+              Color textColor = Colors.white38;
+              FontWeight fontWeight = FontWeight.normal;
+              double fontSize = 16;
+
+              if (isCurrent) {
+                textColor = Colors.cyan;
+                fontWeight = FontWeight.bold;
+                fontSize = 18;
+              } else if (isPast) {
+                textColor = Colors.white;
+                fontWeight = FontWeight.w500;
+              }
+
+              return AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: fontWeight,
+                  fontSize: fontSize,
+                ),
+                child: Text(word.text),
+              );
+            });
+          }).toList(),
+        );
+      },
     );
   }
 
