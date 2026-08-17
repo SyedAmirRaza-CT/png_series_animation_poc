@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -87,11 +88,12 @@ class SubtitleSegment {
 
   factory SubtitleSegment.fromJson(Map<String, dynamic> json) {
     return SubtitleSegment(
-      start: (json['start'] as num).toDouble(),
-      end: (json['end'] as num).toDouble(),
-      text: json['text'] as String,
+      start: (json['start'] as num?)?.toDouble() ?? 0.0,
+      end: (json['end'] as num?)?.toDouble() ?? 0.0,
+      text: (json['text'] as String?) ?? '',
       words: (json['words'] as List<dynamic>?)
-              ?.map((w) => SubtitleWord.fromJson(w))
+              ?.where((w) => w != null && w is Map<String, dynamic>)
+              .map((w) => SubtitleWord.fromJson(w as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -111,9 +113,9 @@ class SubtitleWord {
 
   factory SubtitleWord.fromJson(Map<String, dynamic> json) {
     return SubtitleWord(
-      start: (json['start'] as num).toDouble(),
-      end: (json['end'] as num).toDouble(),
-      text: json['text'] as String,
+      start: (json['start'] as num?)?.toDouble() ?? 0.0,
+      end: (json['end'] as num?)?.toDouble() ?? 0.0,
+      text: (json['text'] as String?) ?? '',
     );
   }
 }
@@ -128,12 +130,10 @@ class PngSubtitleController extends ChangeNotifier {
   PngSubtitleController({
     Map<String, dynamic>? data,
     String? initialLanguage,
-    bool isVisible = true,
-    TextStyle? style,
-    TextStyle? highlightStyle,
-  })  : _isVisible = isVisible,
-        _style = style,
-        _highlightStyle = highlightStyle {
+    this._isVisible = true,
+    this._style,
+    this._highlightStyle,
+  }) {
     if (data != null) {
       updateData(data, initialLanguage: initialLanguage);
     }
@@ -193,6 +193,14 @@ class PngSubtitleController extends ChangeNotifier {
   /// Returns all available languages in the data
   List<String> get availableLanguages => _data.keys.toList();
 
+  /// Returns true if the current language is Right-To-Left (RTL)
+  bool get isRTL {
+    final lang = _currentLanguage?.toLowerCase() ?? '';
+    // Common RTL language codes
+    final rtlCodes = {'ur', 'ar', 'fa', 'he', 'ps', 'sd', 'ckb'};
+    return rtlCodes.contains(lang);
+  }
+
   /// Cycles through available languages
   void cycleLanguage() {
     if (_data.isEmpty) return;
@@ -246,6 +254,9 @@ class PngSeriesAnimator extends StatefulWidget {
   final Color? inactiveColor;
   final Color? thumbColor;
 
+  // Audio property
+  final String? audioPath;
+
   // Subtitle property (Single variable control)
   final PngSubtitleController? subtitleController;
   final PngSubtitleBuilder? subtitleBuilder;
@@ -271,6 +282,7 @@ class PngSeriesAnimator extends StatefulWidget {
     this.activeColor,
     this.inactiveColor,
     this.thumbColor,
+    this.audioPath,
     this.subtitleController,
     this.subtitleBuilder,
   }) : assert(imagePaths.length > 0, 'imagePaths cannot be empty');
@@ -295,6 +307,7 @@ class PngSeriesAnimator extends StatefulWidget {
     this.activeColor,
     this.inactiveColor,
     this.thumbColor,
+    this.audioPath,
     this.subtitleController,
     this.subtitleBuilder,
   })  : showControls = true,
@@ -327,11 +340,18 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   IconData _overlayIcon = Icons.play_arrow;
   Timer? _overlayTimer;
 
+  // Audio state
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _audioReady = false;
+  Duration _effectiveDuration = Duration.zero;
+
   @override
   void initState() {
     super.initState();
+    _effectiveDuration = widget.duration;
     
     widget.subtitleController?.addListener(_onSubtitleControllerChanged);
+    _setupAudio();
 
     _controller = AnimationController(
       vsync: this,
@@ -379,22 +399,73 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
 
   void _onControllerChanged() {
     if (widget.controller != null && widget.controller!.isPlaying != _isPlaying) {
-      setState(() {
-        _isPlaying = widget.controller!.isPlaying;
-        _updateAnimationState();
-      });
-      _fullScreenEntry?.markNeedsBuild();
-
-      // Notify the parent (Phase 4) to play/pause the audio
-      if (widget.onPlayStateChanged != null) {
-        widget.onPlayStateChanged!(_isPlaying);
-      }
+      _togglePlayPause(manualPlayState: widget.controller!.isPlaying);
     }
   }
 
   void _onSubtitleControllerChanged() {
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  void _setupAudio() {
+    if (widget.audioPath == null) {
+      _audioReady = true;
+      return;
+    }
+
+    _audioPlayer.onDurationChanged.listen((dur) {
+      if (mounted) {
+        setState(() {
+          _effectiveDuration = dur;
+          _controller.duration = dur;
+          _audioReady = true;
+          // Important: Trigger state update now that audio is ready
+          _updateAnimationState();
+        });
+      }
+    });
+
+    _audioPlayer.onPositionChanged.listen((pos) {
+      if (_isPlaying && mounted && _effectiveDuration.inMilliseconds > 0) {
+        final double progress = pos.inMilliseconds / _effectiveDuration.inMilliseconds;
+        // Internal sync: Audio drives the controller
+        _controller.value = progress.clamp(0.0, 1.0);
+      }
+    });
+
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        if (widget.repeat) {
+          _controller.forward(from: 0.0);
+          _audioPlayer.seek(Duration.zero);
+          _audioPlayer.resume();
+        } else {
+          _isPlaying = false;
+          _updateAnimationState();
+        }
+      }
+    });
+
+    _resolveAudioSource();
+  }
+
+  Future<void> _resolveAudioSource() async {
+    if (widget.audioPath == null) return;
+
+    try {
+      final path = widget.audioPath!;
+      if (path.startsWith('http')) {
+        await _audioPlayer.setSource(UrlSource(path));
+      } else if (p.isAbsolute(path)) {
+        await _audioPlayer.setSource(DeviceFileSource(path));
+      } else {
+        await _audioPlayer.setSource(AssetSource(path));
+      }
+    } catch (e) {
+      debugPrint('PngSeriesAnimator: Error loading audio: $e');
+      _audioReady = true; // Proceed without audio if failed
     }
   }
 
@@ -559,35 +630,44 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   }
 
   void _updateAnimationState() {
-    if (!_precached) return; // Wait for initial buffer
+    if (!_precached || !_audioReady) return; // Wait for initial buffer
 
     if (_isPlaying && !_isBuffering) {
       if (widget.repeat) {
         _shouldTriggerCompleted = false;
         _controller.repeat();
+        if (widget.audioPath != null) _audioPlayer.resume();
       } else {
         _shouldTriggerCompleted = true;
         if (_controller.value == 1.0) {
           _controller.forward(from: 0.0);
+          if (widget.audioPath != null) {
+            _audioPlayer.seek(Duration.zero);
+            _audioPlayer.resume();
+          }
         } else {
           _controller.forward();
+          if (widget.audioPath != null) _audioPlayer.resume();
         }
       }
     } else {
       _shouldTriggerCompleted = false;
       _controller.stop();
+      if (widget.audioPath != null) _audioPlayer.pause();
     }
   }
 
-  void _togglePlayPause() {
+  void _togglePlayPause({bool? manualPlayState}) {
     setState(() {
-      _isPlaying = !_isPlaying;
+      _isPlaying = manualPlayState ?? !_isPlaying;
       _updateAnimationState();
       _showOverlayIcon(icon: _isPlaying ? Icons.play_arrow : Icons.pause);
 
       if (widget.onPlayStateChanged != null) {
         widget.onPlayStateChanged!(_isPlaying);
       }
+
+      _fullScreenEntry?.markNeedsBuild();
 
       if (_isPlaying) {
         _startHideTimer();
@@ -614,23 +694,25 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   }
 
   void _seekRelative(int seconds) {
-    final Duration effectiveDuration = _controller.duration ?? widget.duration;
-    final double delta = seconds / effectiveDuration.inSeconds;
+    final double delta = seconds / _effectiveDuration.inSeconds;
     final double newValue = (_controller.value + delta).clamp(0.0, 1.0);
-    setState(() {
-      _controller.value = newValue;
-    });
-    
-    if (widget.onSeek != null) {
-      widget.onSeek!(newValue);
+    _seekTo(newValue);
+    _showOverlayIcon(icon: seconds > 0 ? Icons.forward_10 : Icons.replay_10);
+    _startHideTimer();
+  }
+
+  void _seekTo(double value) {
+    _controller.value = value;
+    if (widget.audioPath != null) {
+      final targetMs = (value * _effectiveDuration.inMilliseconds).toInt();
+      _audioPlayer.seek(Duration(milliseconds: targetMs));
     }
-    
+    if (widget.onSeek != null) {
+      widget.onSeek!(value);
+    }
     if (_isPlaying) {
       _updateAnimationState();
     }
-    
-    _showOverlayIcon(icon: seconds > 0 ? Icons.forward_10 : Icons.replay_10);
-    _startHideTimer();
   }
 
   void _toggleFullScreen() async {
@@ -676,6 +758,17 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
+    
+    // Reset to allow all orientations after a frame to let the UI settle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    });
+    
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
@@ -690,11 +783,22 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   void dispose() {
     _hideTimer?.cancel();
     _overlayTimer?.cancel();
-    _fullScreenEntry?.remove();
-    _fullScreenEntry = null;
+    if (_fullScreenEntry != null) {
+      _fullScreenEntry?.remove();
+      _fullScreenEntry = null;
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     widget.controller?.removeListener(_onControllerChanged);
     widget.controller?._detach();
     widget.subtitleController?.removeListener(_onSubtitleControllerChanged);
+    _audioPlayer.stop();
+    _audioPlayer.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -704,8 +808,10 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     if (_isFullScreenInternal) {
       return SizedBox(
         width: widget.width,
-        height: widget.height,
-        child: const Center(child: Text('Playing in Full Screen', style: TextStyle(color: Colors.grey))),
+        height: widget.height ?? (widget.showControls ? 40 : 0),
+        child: const Center(
+          child: Text('Playing in Full Screen', style: TextStyle(color: Colors.grey, fontSize: 10)),
+        ),
       );
     }
     return _buildMainContent(isFullScreen: false);
@@ -963,33 +1069,36 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
 
     if (segment == null) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: RichText(
-        textAlign: TextAlign.center,
-        text: TextSpan(
-          children: segment.words.map((word) {
-            final bool isHighlighted = currentTimeInSeconds >= word.start && currentTimeInSeconds <= word.end;
-            return TextSpan(
-              text: "${word.text} ",
-              style: isHighlighted
-                  ? (controller.highlightStyle ?? const TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold, fontSize: 18))
-                  : (controller.style ?? const TextStyle(color: Colors.white, fontSize: 18)),
-            );
-          }).toList(),
+    return Directionality(
+      textDirection: controller.isRTL ? TextDirection.rtl : TextDirection.ltr,
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: SingleChildScrollView(
+          child: RichText(
+            textAlign: TextAlign.start,
+            text: TextSpan(
+              children: segment.words.map((word) {
+                final bool isHighlighted = currentTimeInSeconds >= word.start && currentTimeInSeconds <= word.end;
+                return TextSpan(
+                  text: "${word.text} ",
+                  style: isHighlighted
+                      ? (controller.highlightStyle ?? const TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold, fontSize: 18))
+                      : (controller.style ?? const TextStyle(color: Colors.white, fontSize: 18)),
+                );
+              }).toList(),
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildVideoControls(bool isFullScreen) {
-    final Duration effectiveDuration = _controller.duration ?? widget.duration;
-    final currentDuration = effectiveDuration * _controller.value;
-    
     // Calculate contiguous buffer progress from current position
     final int total = widget.imagePaths.length;
     double bufferProgress = 0.0;
@@ -1043,12 +1152,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                   _startHideTimer();
                 },
                 onChanged: (val) {
-                  setState(() {
-                    _controller.value = val;
-                  });
-                  if (widget.onSeek != null) {
-                    widget.onSeek!(val);
-                  }
+                  _seekTo(val);
                 },
               ),
             ),
@@ -1056,10 +1160,10 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
               children: [
                 IconButton(
                   icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                  onPressed: _togglePlayPause,
+                  onPressed: () => _togglePlayPause(),
                 ),
                 Text(
-                  '${_formatDuration(currentDuration)} / ${_formatDuration(effectiveDuration)}',
+                  '${_formatDuration(_effectiveDuration * _controller.value)} / ${_formatDuration(_effectiveDuration)}',
                   style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),

@@ -5,6 +5,7 @@ import 'phases/phase_2_network.dart';
 import 'phases/phase_3_on_demand.dart';
 import 'phases/phase_4_synced_av.dart';
 import 'phases/phase_5_subtitles.dart';
+import 'phases/phase_6_no_fallback.dart';
 
 void main() {
   runApp(const MyApp());
@@ -90,6 +91,16 @@ class HomeScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const Phase5SubtitlesDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 6: Strict Bundle',
+                subtitle: 'No assets fallback enabled',
+                icon: Icons.lock_outline,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Phase6NoFallbackDemo()),
                 ),
               ),
               const SizedBox(height: 40),

@@ -7,8 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive.dart';
 import 'bundle_metadata.dart';
+import 'bundle_content.dart';
 
-/// Exceptions for AssetBundleManager
+/// Exceptions for AssetBundleService
 class AssetBundleException implements Exception {
   final String message;
   final dynamic originalError;
@@ -29,10 +30,10 @@ class BundleNotFoundException extends AssetBundleException {
   BundleNotFoundException(super.message);
 }
 
-class AssetBundleManager {
-  static final AssetBundleManager _instance = AssetBundleManager._internal();
-  factory AssetBundleManager() => _instance;
-  AssetBundleManager._internal();
+class AssetBundleService {
+  static final AssetBundleService _instance = AssetBundleService._internal();
+  factory AssetBundleService() => _instance;
+  AssetBundleService._internal();
 
   static const String _bundlesDirName = 'asset_bundles';
   static const String _filesDirName = 'files';
@@ -85,14 +86,26 @@ class AssetBundleManager {
     return await metadataFile.exists();
   }
 
-  /// Checks if a specific version of a bundle is installed
-  Future<bool> isBundleVersionInstalled(String bundleId, int version) async {
+  /// Returns the installed version of a bundle, or -1 if not installed
+  Future<int> getInstalledVersion(String bundleId) async {
     try {
       final metadata = await getBundleMetadata(bundleId);
-      return metadata.version == version;
+      return metadata.version;
     } catch (_) {
-      return false;
+      return -1;
     }
+  }
+
+  /// Checks if a specific version of a bundle is installed
+  Future<bool> isBundleVersionInstalled(String bundleId, int version) async {
+    final installedVersion = await getInstalledVersion(bundleId);
+    return installedVersion == version;
+  }
+
+  /// Checks if an update is available for the bundle
+  Future<bool> isUpdateAvailable(String bundleId, int latestVersion) async {
+    final installedVersion = await getInstalledVersion(bundleId);
+    return installedVersion != -1 && latestVersion > installedVersion;
   }
 
   /// Retrieves metadata for a bundle
@@ -135,15 +148,15 @@ class AssetBundleManager {
     required int version,
     void Function(int received, int total)? onProgress,
   }) async {
-    debugPrint('AssetBundleManager: Starting download for $bundleId from $url');
+    debugPrint('AssetBundleService: Starting download for $bundleId from $url');
     // 1. Check if already installed
     if (await isBundleVersionInstalled(bundleId, version)) {
-      debugPrint('AssetBundleManager: Bundle $bundleId v$version already installed.');
+      debugPrint('AssetBundleService: Bundle $bundleId v$version already installed.');
       return;
     }
 
     final rootDir = await _getRootDir();
-    debugPrint('AssetBundleManager: Root directory: $rootDir');
+    debugPrint('AssetBundleService: Root directory: $rootDir');
     
     final tempDir = Directory(p.join(rootDir, _tempDirName));
     if (!await tempDir.exists()) {
@@ -155,22 +168,22 @@ class AssetBundleManager {
 
     try {
       // 2. Download ZIP
-      debugPrint('AssetBundleManager: Downloading ZIP to ${tempZipFile.path}...');
+      debugPrint('AssetBundleService: Downloading ZIP to ${tempZipFile.path}...');
       await _downloadFile(url, tempZipFile, onProgress);
-      debugPrint('AssetBundleManager: Download complete. Size: ${await tempZipFile.length()} bytes');
+      debugPrint('AssetBundleService: Download complete. Size: ${await tempZipFile.length()} bytes');
 
       // 3. Extract ZIP to temp location
-      debugPrint('AssetBundleManager: Extracting ZIP to ${extractionDir.path}...');
+      debugPrint('AssetBundleService: Extracting ZIP to ${extractionDir.path}...');
       if (await extractionDir.exists()) {
         await extractionDir.delete(recursive: true);
       }
       await extractionDir.create(recursive: true);
 
       await _extractZip(tempZipFile, extractionDir);
-      debugPrint('AssetBundleManager: Extraction complete.');
+      debugPrint('AssetBundleService: Extraction complete.');
 
       // 4. Create metadata
-      debugPrint('AssetBundleManager: Saving metadata...');
+      debugPrint('AssetBundleService: Saving metadata...');
       final metadata = BundleMetadata(
         bundleId: bundleId,
         version: version,
@@ -182,7 +195,7 @@ class AssetBundleManager {
       await metadataFile.writeAsString(metadata.toRawJson());
 
       // 5. Atomic-ish Swap
-      debugPrint('AssetBundleManager: Finalizing installation...');
+      debugPrint('AssetBundleService: Finalizing installation...');
       final finalBundlePath = await getBundlePath(bundleId);
       final backupPath = p.join(rootDir, '${bundleId}_old');
 
@@ -202,9 +215,9 @@ class AssetBundleManager {
         await tempZipFile.delete();
       }
 
-      debugPrint('AssetBundleManager: Successfully installed $bundleId v$version');
+      debugPrint('AssetBundleService: Successfully installed $bundleId v$version');
     } catch (e, stack) {
-      debugPrint('AssetBundleManager: ERROR during installation: $e');
+      debugPrint('AssetBundleService: ERROR during installation: $e');
       debugPrint(stack.toString());
       // Cleanup on failure
       if (await extractionDir.exists()) await extractionDir.delete(recursive: true);
@@ -232,17 +245,17 @@ class AssetBundleManager {
       // Handle up to 5 redirects manually to support GitHub/Cloudinary redirects
       for (int i = 0; i < 5; i++) {
         final request = http.Request('GET', Uri.parse(currentUrl));
-        request.headers['User-Agent'] = 'Flutter-AssetBundleManager';
+        request.headers['User-Agent'] = 'Flutter-AssetBundleService';
         request.followRedirects = false; // We check manually to log
         
         response = await client.send(request);
-        debugPrint('AssetBundleManager: HTTP Status: ${response.statusCode} for $currentUrl');
+        debugPrint('AssetBundleService: HTTP Status: ${response.statusCode} for $currentUrl');
 
         if (response.statusCode >= 300 && response.statusCode < 400) {
           final location = response.headers['location'];
           if (location != null) {
             currentUrl = Uri.parse(currentUrl).resolve(location).toString();
-            debugPrint('AssetBundleManager: Redirecting to $currentUrl');
+            debugPrint('AssetBundleService: Redirecting to $currentUrl');
             continue;
           }
         }
@@ -268,10 +281,10 @@ class AssetBundleManager {
           int percent = ((received / total) * 100).floor();
           if (percent > lastLogPercent) {
             lastLogPercent = percent;
-            debugPrint('AssetBundleManager: Download Progress: $percent% ($received/$total)');
+            debugPrint('AssetBundleService: Download Progress: $percent% ($received/$total)');
           }
         } else if (received % (1024 * 500) == 0) { // Log every 500KB if total unknown
-           debugPrint('AssetBundleManager: Download Progress: $received bytes (Total unknown)');
+           debugPrint('AssetBundleService: Download Progress: $received bytes (Total unknown)');
         }
 
         if (onProgress != null) {
@@ -281,7 +294,7 @@ class AssetBundleManager {
       
       await sink.close();
     } catch (e) {
-      debugPrint('AssetBundleManager: Download Stream Error: $e');
+      debugPrint('AssetBundleService: Download Stream Error: $e');
       throw BundleDownloadException('Network failure during download', e);
     } finally {
       client.close();
@@ -305,7 +318,7 @@ class AssetBundleManager {
         // Security: Prevent Zip Slip (Path Traversal)
         final targetPath = p.normalize(p.join(filesDir, filename));
         if (!p.isWithin(filesDir, targetPath)) {
-          debugPrint('AssetBundleManager: SECURITY WARNING - Skipping invalid ZIP path: $filename');
+          debugPrint('AssetBundleService: SECURITY WARNING - Skipping invalid ZIP path: $filename');
           continue;
         }
 
@@ -380,6 +393,16 @@ class AssetBundleManager {
                 entity.path.toLowerCase().endsWith('.webm')))
         .map((entity) => entity.path)
         .toList();
+  }
+
+  /// Returns a summary of all content within a bundle
+  Future<BundleContent> getBundleContent(String bundleId) async {
+    return BundleContent(
+      images: await getAllImages(bundleId),
+      audio: await getAllAudio(bundleId),
+      subtitles: await getAllSubtitles(bundleId),
+      videos: await getAllVideo(bundleId),
+    );
   }
 
   /// Helper to get all subtitle/json paths in a bundle recursively

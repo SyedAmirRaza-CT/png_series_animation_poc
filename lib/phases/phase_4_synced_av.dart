@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+
 import 'package:path/path.dart' as p;
 import '../png_series_animator/png_series_animator.dart';
-import '../asset_bundle_manager/asset_bundle_manager.dart';
+import '../asset_bundle_manager/asset_bundle_service.dart';
 
 class SyncedPlaybackDemo extends StatefulWidget {
   const SyncedPlaybackDemo({super.key});
@@ -13,9 +13,7 @@ class SyncedPlaybackDemo extends StatefulWidget {
 }
 
 class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProviderStateMixin {
-  final _service = AssetBundleManager();
-  final _audioPlayer = AudioPlayer();
-
+  final _service = AssetBundleService();
   final _pngController = PngSeriesController();
 
   final String _bundleId = 'synced_bundle_v1';
@@ -28,54 +26,13 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
 
   List<String> _imagePaths = [];
   String? _audioPath;
-  Duration _totalDuration = const Duration(seconds: 10);
-
+  
   bool _isReady = false;
-  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _checkStatus();
-    _setupAudioListeners();
-  }
-
-  void _setupAudioListeners() {
-    _audioPlayer.onPositionChanged.listen((pos) {
-      if (_isPlaying && mounted) {
-        final double value = pos.inMilliseconds / _totalDuration.inMilliseconds;
-        _pngController.seekTo(value.clamp(0.0, 1.0));
-      }
-    });
-
-    _audioPlayer.onDurationChanged.listen((dur) {
-      if (mounted && dur.inMilliseconds > 0) {
-        setState(() {
-          _totalDuration = dur;
-          _isReady = true;
-        });
-
-        // Phase 4 Autoplay using the controller
-        if (_isInstalled && !_isPlaying) {
-          _pngController.play();
-        }
-      }
-    });
-
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = state == PlayerState.playing;
-        });
-      }
-    });
-
-    _audioPlayer.onPlayerComplete.listen((event) {
-       if (mounted) {
-         _pngController.seekTo(0.0);
-         _audioPlayer.seek(Duration.zero);
-       }
-    });
   }
 
   Future<void> _checkStatus() async {
@@ -89,25 +46,14 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
         _imagePaths = images;
         if (audioFiles.isNotEmpty) {
           _audioPath = audioFiles.first;
-          _prepareAudio();
         } else {
-          _audioPath = null;
-          _prepareAudio();
+          _audioPath = _fallbackAudioAsset;
         }
-
+        _isReady = true;
+        
+        // Autoplay once ready
+        _pngController.play();
       });
-    }
-  }
-
-  Future<void> _prepareAudio() async {
-    try {
-      if (_audioPath != null) {
-        await _audioPlayer.setSource(DeviceFileSource(_audioPath!));
-      } else {
-        await _audioPlayer.setSource(AssetSource(_fallbackAudioAsset));
-      }
-    } catch (e) {
-      debugPrint('Error preparing audio: $e');
     }
   }
 
@@ -140,27 +86,8 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
     }
   }
 
-  Future<void> _handleSyncPlayPause(bool playing) async {
-    debugPrint('Phase 4: Sync Play/Pause called with: $playing');
-    if (playing) {
-      if (_audioPath != null) {
-        await _audioPlayer.play(DeviceFileSource(_audioPath!));
-      } else {
-        await _audioPlayer.play(AssetSource(_fallbackAudioAsset));
-      }
-    } else {
-      await _audioPlayer.pause();
-    }
-  }
-
-  Future<void> _handleSyncSeek(double value) async {
-    final targetMs = (value * _totalDuration.inMilliseconds).toInt();
-    await _audioPlayer.seek(Duration(milliseconds: targetMs));
-  }
-
   @override
   void dispose() {
-    _audioPlayer.dispose();
     _pngController.dispose();
     super.dispose();
   }
@@ -185,7 +112,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 20),
-            Text('Initializing Audio Sync...'),
+            Text('Initializing...'),
           ],
         ),
       );
@@ -197,11 +124,8 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
           child: PngSeriesAnimator.videoPlayer(
             imagePaths: _imagePaths,
             controller: _pngController,
-            duration: _totalDuration,
-            isPlaying: _isPlaying,
+            audioPath: _audioPath,
             fit: BoxFit.contain,
-            onPlayStateChanged: _handleSyncPlayPause,
-            onSeek: _handleSyncSeek,
           ),
         ),
         Padding(
@@ -209,7 +133,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
           child: Column(
             children: [
               Text(
-                _audioPath != null
+                _audioPath != null && p.isAbsolute(_audioPath!)
                   ? 'Audio: ${p.basename(_audioPath!)} (Bundle)'
                   : 'Audio: $_fallbackAudioAsset (Local Asset)',
                 style: const TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold),
@@ -217,7 +141,7 @@ class _SyncedPlaybackDemoState extends State<SyncedPlaybackDemo> with TickerProv
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () async {
-                  await _audioPlayer.stop();
+                  _pngController.pause();
                   await _service.deleteBundle(_bundleId);
                   setState(() {
                      _isInstalled = false;

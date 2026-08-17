@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import '../png_series_animator/png_series_animator.dart';
-import '../asset_bundle_manager/asset_bundle_manager.dart';
+import '../asset_bundle_manager/asset_bundle_service.dart';
 
 class AssetBundleDemo extends StatefulWidget {
   const AssetBundleDemo({super.key});
@@ -12,7 +12,7 @@ class AssetBundleDemo extends StatefulWidget {
 }
 
 class _AssetBundleDemoState extends State<AssetBundleDemo> {
-  final _service = AssetBundleManager();
+  final _service = AssetBundleService();
   final String _bundleId = 'verified_bundle_v1';
   
   // VERIFIED STABLE URL: This is a public GitHub Release Asset (Guaranteed no 401/403)
@@ -38,26 +38,17 @@ class _AssetBundleDemoState extends State<AssetBundleDemo> {
     if (installed) {
       final images = await _service.getAllImages(_bundleId);
       final allEntities = await _service.listFiles(_bundleId, '');
-      try {
-        final metadata = await _service.getBundleMetadata(_bundleId);
-        setState(() {
-          _isInstalled = true;
-          _installedVersion = metadata.version;
-          _totalFiles = allEntities.length;
-          _localImagePaths = images;
-          if (_targetVersion < _installedVersion) {
-            _targetVersion = _installedVersion;
-          }
-        });
-      } catch (e) {
-        debugPrint('Error reading metadata: $e');
-        setState(() {
-          _isInstalled = true;
-          _installedVersion = 0; // Unknown
-          _totalFiles = allEntities.length;
-          _localImagePaths = images;
-        });
-      }
+      final version = await _service.getInstalledVersion(_bundleId);
+      
+      setState(() {
+        _isInstalled = true;
+        _installedVersion = version;
+        _totalFiles = allEntities.length;
+        _localImagePaths = images;
+        if (_targetVersion < _installedVersion) {
+          _targetVersion = _installedVersion;
+        }
+      });
     } else {
       setState(() {
         _isInstalled = false;

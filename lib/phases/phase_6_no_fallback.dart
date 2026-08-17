@@ -1,19 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import '../png_series_animator/png_series_animator.dart';
 import '../asset_bundle_manager/asset_bundle_service.dart';
 
-class Phase5SubtitlesDemo extends StatefulWidget {
-  const Phase5SubtitlesDemo({super.key});
+class Phase6NoFallbackDemo extends StatefulWidget {
+  const Phase6NoFallbackDemo({super.key});
 
   @override
-  State<Phase5SubtitlesDemo> createState() => _Phase5SubtitlesDemoState();
+  State<Phase6NoFallbackDemo> createState() => _Phase6NoFallbackDemoState();
 }
 
-class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerProviderStateMixin {
+class _Phase6NoFallbackDemoState extends State<Phase6NoFallbackDemo> with TickerProviderStateMixin {
   final _service = AssetBundleService();
   final _pngController = PngSeriesController();
   final _subtitleController = PngSubtitleController();
@@ -21,9 +19,9 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
   final Map<int, GlobalKey> _segmentKeys = {};
   int _lastActiveSegmentIndex = -1;
   
-  final String _bundleId = 'subtitle_bundle_v1';
-  final String _zipUrl = 'https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip';
-  final String _fallbackAudioAsset = 'audio/default_sync.mp3';
+  final String _bundleId = 'no_fallback_bundle_v1';
+  // Note: Using the same test URL as Phase 5 for logic demonstration
+  final String _zipUrl = 'http://172.16.82.65:8080/1.zip';
 
   bool _isDownloading = false;
   double _downloadProgress = 0;
@@ -31,6 +29,8 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
   
   List<String> _imagePaths = [];
   String? _audioPath;
+  List<String> _videoPaths = [];
+  bool _hasSubtitles = false;
   
   bool _isReady = false;
 
@@ -40,52 +40,46 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
     _checkStatus();
   }
 
-  Future<void> _loadFallbackSubtitles() async {
-    try {
-      debugPrint('Phase 5: Loading fallback subtitles from assets...');
-      final String response = await rootBundle.loadString('assets/metadata/subtitles.json');
-      final data = json.decode(response);
-      _subtitleController.updateData(data, initialLanguage: 'en');
-    } catch (e) {
-      debugPrint('Error loading fallback subtitles: $e');
-    }
-  }
-
   Future<void> _checkStatus() async {
     final installed = await _service.isBundleDownloaded(_bundleId);
     if (installed) {
-      final images = await _service.getAllImages(_bundleId);
-      final audioFiles = await _service.getAllAudio(_bundleId);
-      final subtitleFiles = await _service.getAllSubtitles(_bundleId);
+      final content = await _service.getBundleContent(_bundleId);
       
-      if (subtitleFiles.isNotEmpty) {
+      final images = content.images;
+      final audioFiles = content.audio;
+      final subtitleFiles = content.subtitles;
+      final videos = content.videos;
+
+      debugPrint("Phase 6: Detected Bundle Content:");
+      debugPrint("Images: ${images.length}");
+      debugPrint("Audio: ${audioFiles.length}");
+      debugPrint("Subtitles: ${subtitleFiles.length}");
+      debugPrint("Videos: ${videos.length}");
+
+      // 1. Load Subtitles if available
+      if (content.hasSubtitles) {
         try {
-          debugPrint('Phase 5: Loading subtitles from bundle path: ${subtitleFiles.first}');
-          final data = await _service.getJsonFromAbsolutePath(subtitleFiles.first);
+          final data = await _service.getJsonFromAbsolutePath(content.subtitles.first);
           _subtitleController.updateData(data, initialLanguage: 'en');
+          _hasSubtitles = true;
         } catch (e) {
-          debugPrint('Error loading bundle subtitles: $e');
-          await _loadFallbackSubtitles();
+          debugPrint('Phase 6 Error: Failed to load bundle subtitles: $e');
         }
-      } else {
-        await _loadFallbackSubtitles();
       }
 
       setState(() {
         _isInstalled = true;
         _imagePaths = images;
-        if (audioFiles.isNotEmpty) {
-          _audioPath = audioFiles.first;
-        } else {
-          _audioPath = _fallbackAudioAsset;
-        }
-        _isReady = true;
+        _videoPaths = videos;
+        _audioPath = audioFiles.isNotEmpty ? audioFiles.first : null;
+        
+        // Phase 6 is "Ready" if there is at least something to show/play
+        _isReady = _imagePaths.isNotEmpty || _videoPaths.isNotEmpty || _audioPath != null;
 
-        // Autoplay once ready
-        _pngController.play();
+        if (_isReady) {
+          _pngController.play();
+        }
       });
-    } else {
-      await _loadFallbackSubtitles();
     }
   }
 
@@ -129,7 +123,7 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Phase 5: Subtitles & Highlights')),
+      appBar: AppBar(title: const Text('Phase 6: Strict Bundle Content')),
       body: Center(
         child: _isInstalled 
           ? _buildPlayer()
@@ -140,13 +134,31 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
 
   Widget _buildPlayer() {
     if (!_isReady) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 20),
-            Text('Preparing Experience...'),
+            const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange),
+            const SizedBox(height: 16),
+            const Text(
+              'Incomplete Bundle Content',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text(
+                'The downloaded bundle appears to be empty. No images, audio, or video files were found.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                 await _service.deleteBundle(_bundleId);
+                 setState(() => _isInstalled = false);
+              },
+              child: const Text('Redownload Bundle'),
+            )
           ],
         ),
       );
@@ -156,65 +168,91 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
 
     return Column(
       children: [
-        SizedBox(
-          height: isLandscape ? 150 : 300,
-          child: PngSeriesAnimator.videoPlayer(
-            imagePaths: _imagePaths,
-            controller: _pngController,
-            audioPath: _audioPath,
-            subtitleController: _subtitleController,
-            fit: BoxFit.contain,
-            subtitleBuilder: (context, segment, currentTime) {
-              if (segment == null) return const SizedBox.shrink();
+        if (_imagePaths.isNotEmpty)
+          SizedBox(
+            height: isLandscape ? 150 : 300,
+            child: PngSeriesAnimator.videoPlayer(
+              imagePaths: _imagePaths,
+              controller: _pngController,
+              audioPath: _audioPath,
+              subtitleController: _subtitleController,
+              fit: BoxFit.contain,
+              subtitleBuilder: (context, segment, currentTime) {
+                if (segment == null) return const SizedBox.shrink();
 
-              return Directionality(
-                textDirection: _subtitleController.isRTL ? TextDirection.rtl : TextDirection.ltr,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 0),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      children: segment.words.map((word) {
-                        final bool isCurrent = currentTime >= word.start && currentTime <= word.end;
-                        final bool isPast = currentTime > word.end;
+                return Directionality(
+                  textDirection: _subtitleController.isRTL ? TextDirection.rtl : TextDirection.ltr,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: RichText(
+                      textAlign: TextAlign.start,
+                      text: TextSpan(
+                        children: segment.words.map((word) {
+                          final bool isCurrent = currentTime >= word.start && currentTime <= word.end;
+                          final bool isPast = currentTime > word.end;
 
-                        return TextSpan(
-                          text: "${word.text} ",
-                          style: TextStyle(
-                            color: isCurrent ? Colors.yellowAccent : (isPast ? Colors.white : Colors.white38),
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            fontSize: isCurrent ? 18 : 18,
-                          ),
-                        );
-                      }).toList(),
+                          return TextSpan(
+                            text: "${word.text} ",
+                            style: TextStyle(
+                              color: isCurrent ? Colors.yellowAccent : (isPast ? Colors.white : Colors.white38),
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                              fontSize: isCurrent ? 18 : 18,
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
+          )
+        else if (_audioPath != null)
+           Container(
+            height: 100,
+            margin: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.cyan.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.audiotrack, color: Colors.cyan),
+                  const SizedBox(width: 12),
+                  Text('Playing Audio: ${p.basename(_audioPath!)}'),
+                ],
+              ),
+            ),
           ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: _buildTranscript(),
+        if (_hasSubtitles)
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _transcriptScrollController,
+              padding: const EdgeInsets.all(20),
+              child: _buildTranscript(),
+            ),
+          )
+        else
+          const Expanded(
+            child: Center(
+              child: Text('No images or subtitles to display.', style: TextStyle(color: Colors.white24)),
+            ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!isLandscape)
+              if (!isLandscape && _audioPath != null)
                 Text(
-                  _audioPath != null && p.isAbsolute(_audioPath!)
-                    ? 'Audio: ${p.basename(_audioPath!)} (Bundle)' 
-                    : 'Audio: $_fallbackAudioAsset (Local Asset)',
+                  'Audio: ${p.basename(_audioPath!)}', 
                   style: const TextStyle(color: Colors.cyan, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               if (!isLandscape) const SizedBox(height: 8),
@@ -246,16 +284,14 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
     return ListenableBuilder(
       listenable: Listenable.merge([_pngController, _subtitleController]),
       builder: (context, child) {
-        // Use animation controller's duration or a fallback
         final Duration dur = _pngController.animationController?.duration ?? const Duration(seconds: 10);
         final double currentTime = _pngController.value * dur.inSeconds;
         final segments = _subtitleController.currentSegments;
 
         if (segments.isEmpty) {
-          return const Center(child: Text('No transcript available for this language.'));
+          return const Center(child: Text('No transcript available in bundle.'));
         }
 
-        // Auto-scroll logic: Find current active segment
         int activeIndex = -1;
         for (int i = 0; i < segments.length; i++) {
           if (currentTime >= segments[i].start && currentTime <= segments[i].end) {
@@ -273,7 +309,7 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
                  key!.currentContext!,
                  duration: const Duration(milliseconds: 500),
                  curve: Curves.easeInOut,
-                 alignment: 0.5, // Center in viewport
+                 alignment: 0.5,
                );
              }
           });
@@ -335,16 +371,16 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.subtitles, size: 80, color: Colors.cyan),
+        const Icon(Icons.cloud_off, size: 80, color: Colors.cyan),
         const SizedBox(height: 20),
         const Text(
-          'Phase 5: Subtitles Demo',
+          'Phase 6: Strict Bundle',
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 40, vertical: 10),
           child: Text(
-            'This phase adds multi-language subtitles with word-level highlighting and a custom options menu.',
+            'This phase strictly requires content from the bundle. If any part (Audio, Images, JSON) is missing, playback will not start. Asset fallbacks are disabled.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -362,7 +398,7 @@ class _Phase5SubtitlesDemoState extends State<Phase5SubtitlesDemo> with TickerPr
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
             ),
-            child: const Text('Download Phase 5 Bundle'),
+            child: const Text('Download Content Bundle'),
           ),
       ],
     );
