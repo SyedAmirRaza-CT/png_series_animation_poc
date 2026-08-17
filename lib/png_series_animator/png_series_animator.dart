@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart' as ja;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -22,38 +22,74 @@ typedef PngSubtitleBuilder = Widget Function(
 class PngSeriesController extends ChangeNotifier {
   AnimationController? _animationController;
   bool _isPlaying = false;
+  VoidCallback? _onPlay;
+  VoidCallback? _onPause;
+  ValueChanged<double>? _onSeek;
 
-  void _attach(AnimationController controller) {
+  void _attach(AnimationController controller, {
+    VoidCallback? onPlay,
+    VoidCallback? onPause,
+    ValueChanged<double>? onSeek,
+  }) {
     _animationController = controller;
+    _onPlay = onPlay;
+    _onPause = onPause;
+    _onSeek = onSeek;
     _animationController!.addListener(_onControllerTick);
   }
 
   void _detach() {
     _animationController?.removeListener(_onControllerTick);
     _animationController = null;
+    _onPlay = null;
+    _onPause = null;
+    _onSeek = null;
   }
 
   void _onControllerTick() {
     notifyListeners();
   }
 
+  /// Internal sync for the state to update the controller
+  void _updatePlayState(bool playing) {
+    if (_isPlaying != playing) {
+      _isPlaying = playing;
+      notifyListeners();
+    }
+  }
+
   /// Starts playback
   void play() {
+    if (_isPlaying) return;
     _isPlaying = true;
-    _animationController?.forward();
+    if (_onPlay != null) {
+      _onPlay!();
+    } else {
+      _animationController?.forward();
+    }
     notifyListeners();
   }
 
   /// Pauses playback
   void pause() {
+    if (!_isPlaying) return;
     _isPlaying = false;
-    _animationController?.stop();
+    if (_onPause != null) {
+      _onPause!();
+    } else {
+      _animationController?.stop();
+    }
     notifyListeners();
   }
 
   /// Seeks to a specific progress (0.0 to 1.0)
   void seekTo(double value) {
-    _animationController?.value = value.clamp(0.0, 1.0);
+    final clampedValue = value.clamp(0.0, 1.0);
+    if (_onSeek != null) {
+      _onSeek!(clampedValue);
+    } else {
+      _animationController?.value = clampedValue;
+    }
     notifyListeners();
   }
 
@@ -231,6 +267,8 @@ class PngSubtitleController extends ChangeNotifier {
   }
 }
 
+enum PngPlaybackState { playing, paused, buffering, seeking }
+
 class PngSeriesAnimator extends StatefulWidget {
   final List<String> imagePaths;
   final Duration duration;
@@ -325,7 +363,6 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   final Map<String, ImageProvider> _imageProviders = {};
   final Set<int> _loadedIndices = {};
   double? _aspectRatio;
-  bool _isBuffering = false;
 
   // State for video controls
   late bool _isPlaying;
@@ -341,13 +378,29 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   Timer? _overlayTimer;
 
   // Audio state
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final ja.AudioPlayer _audioPlayer = ja.AudioPlayer();
   bool _audioReady = false;
   Duration _effectiveDuration = Duration.zero;
+  PngPlaybackState _state = PngPlaybackState.paused;
+  Timer? _seekTimer;
+  Timer? _syncTimer;
+  int _lastSeekActionTime = 0;
+  int _targetSeekMs = 0;
+  StreamSubscription? _posSub;
+  
+  // Use ValueNotifier for high-performance frame updates
+  final ValueNotifier<int> _frameIndexNotifier = ValueNotifier<int>(0);
+  StreamSubscription? _durSub;
+  StreamSubscription? _compSub;
 
   @override
   void initState() {
     super.initState();
+    
+    // OPTIMIZATION: Limit image cache for iPad 3
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100MB
+    
+    debugPrint('PngSeriesAnimator: InitState - Version 6.0 (just_audio)');
     _effectiveDuration = widget.duration;
     
     widget.subtitleController?.addListener(_onSubtitleControllerChanged);
@@ -357,16 +410,18 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       vsync: this,
       duration: widget.duration,
       value: widget.initialValue,
-    );
+    )..addListener(_onAnimationTick);
 
-    // If a controller is provided, it becomes the source of truth for the initial play state
     if (widget.controller != null) {
+      _state = widget.controller!.isPlaying ? PngPlaybackState.playing : PngPlaybackState.paused;
       _isPlaying = widget.controller!.isPlaying;
-      widget.controller?._attach(_controller);
-      widget.controller?.addListener(_onControllerChanged);
+      widget.controller?._attach(
+        _controller,
+        onPlay: () => _togglePlayPause(manualPlayState: true),
+        onPause: () => _togglePlayPause(manualPlayState: false),
+        onSeek: (val) => _seekTo(val),
+      );
       
-      // If we are starting in play mode, notify the parent (Phase 4) 
-      // so it can start the synced audio.
       if (_isPlaying && widget.onPlayStateChanged != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) widget.onPlayStateChanged!(true);
@@ -374,6 +429,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       }
     } else {
       _isPlaying = widget.isPlaying;
+      _state = widget.isPlaying ? PngPlaybackState.playing : PngPlaybackState.paused;
     }
 
     _controller.addStatusListener((status) {
@@ -397,9 +453,12 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     }
   }
 
-  void _onControllerChanged() {
-    if (widget.controller != null && widget.controller!.isPlaying != _isPlaying) {
-      _togglePlayPause(manualPlayState: widget.controller!.isPlaying);
+  void _onAnimationTick() {
+    final int totalFrames = widget.imagePaths.length;
+    if (totalFrames == 0) return;
+    final int index = (_controller.value * totalFrames).floor().clamp(0, totalFrames - 1);
+    if (_frameIndexNotifier.value != index) {
+      _frameIndexNotifier.value = index;
     }
   }
 
@@ -415,35 +474,48 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       return;
     }
 
-    _audioPlayer.onDurationChanged.listen((dur) {
-      if (mounted) {
+    _durSub = _audioPlayer.durationStream.listen((dur) {
+      if (dur != null && mounted) {
+        debugPrint('PngSeriesAnimator: Audio Duration Received: ${dur.inMilliseconds}ms');
         setState(() {
           _effectiveDuration = dur;
           _controller.duration = dur;
           _audioReady = true;
-          // Important: Trigger state update now that audio is ready
-          _updateAnimationState();
+          
+          if (widget.initialValue > 0) {
+            _audioPlayer.seek(Duration(milliseconds: (widget.initialValue * dur.inMilliseconds).toInt()));
+          }
+          
+          _syncPlayback();
         });
       }
     });
 
-    _audioPlayer.onPositionChanged.listen((pos) {
-      if (_isPlaying && mounted && _effectiveDuration.inMilliseconds > 0) {
-        final double progress = pos.inMilliseconds / _effectiveDuration.inMilliseconds;
-        // Internal sync: Audio drives the controller
-        _controller.value = progress.clamp(0.0, 1.0);
+    _posSub = _audioPlayer.positionStream.listen((pos) {
+      if (!mounted || _state != PngPlaybackState.playing) return;
+
+      final int audioMs = pos.inMilliseconds;
+      final int now = DateTime.now().millisecondsSinceEpoch;
+
+      // Ignore updates immediately after seek
+      if (now - _lastSeekActionTime < 1000) return;
+
+      // Sync the AnimationController to audio
+      final double audioProgress = (audioMs / _effectiveDuration.inMilliseconds).clamp(0.0, 1.0);
+      final double drift = (audioProgress - _controller.value).abs();
+      
+      // If drift is significant (> 100ms), snap the controller
+      if (drift > (100 / _effectiveDuration.inMilliseconds)) {
+        _controller.value = audioProgress;
       }
     });
 
-    _audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) {
+    _compSub = _audioPlayer.processingStateStream.listen((state) {
+      if (state == ja.ProcessingState.completed && mounted) {
         if (widget.repeat) {
-          _controller.forward(from: 0.0);
-          _audioPlayer.seek(Duration.zero);
-          _audioPlayer.resume();
+          _seekTo(0.0, resume: true);
         } else {
-          _isPlaying = false;
-          _updateAnimationState();
+          _updateState(PngPlaybackState.paused);
         }
       }
     });
@@ -451,20 +523,55 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     _resolveAudioSource();
   }
 
+  void _updateState(PngPlaybackState newState) {
+    if (_state == newState) return;
+    
+    setState(() {
+      _state = newState;
+      _isPlaying = (newState == PngPlaybackState.playing);
+      widget.controller?._updatePlayState(_isPlaying);
+      _syncPlayback();
+    });
+  }
+
+  void _syncPlayback() {
+    if (!_precached || !_audioReady) {
+      debugPrint('PngSeriesAnimator: Sync Deferred - Precached: $_precached, AudioReady: $_audioReady');
+      return;
+    }
+
+    switch (_state) {
+      case PngPlaybackState.playing:
+        debugPrint('PngSeriesAnimator: Resuming Audio');
+        _audioPlayer.play();
+        _controller.forward();
+        break;
+      case PngPlaybackState.paused:
+      case PngPlaybackState.buffering:
+      case PngPlaybackState.seeking:
+        debugPrint('PngSeriesAnimator: Pausing Audio (State: $_state)');
+        _audioPlayer.pause();
+        _controller.stop();
+        break;
+    }
+  }
+
   Future<void> _resolveAudioSource() async {
     if (widget.audioPath == null) return;
 
     try {
       final path = widget.audioPath!;
+      debugPrint('PngSeriesAnimator: Resolving Audio Source (just_audio): $path');
       if (path.startsWith('http')) {
-        await _audioPlayer.setSource(UrlSource(path));
+        await _audioPlayer.setUrl(path);
       } else if (p.isAbsolute(path)) {
-        await _audioPlayer.setSource(DeviceFileSource(path));
+        await _audioPlayer.setFilePath(path);
       } else {
-        await _audioPlayer.setSource(AssetSource(path));
+        await _audioPlayer.setAsset(path);
       }
+      debugPrint('PngSeriesAnimator: Audio Source Set Successfully');
     } catch (e) {
-      debugPrint('PngSeriesAnimator: Error loading audio: $e');
+      debugPrint('PngSeriesAnimator: Error loading audio source: $e');
       _audioReady = true; // Proceed without audio if failed
     }
   }
@@ -517,7 +624,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     if (mounted) {
       setState(() {
         _precached = true;
-        _updateAnimationState();
+        _syncPlayback();
       });
     }
     
@@ -584,12 +691,11 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
           _loadedIndices.add(index);
           
           // BUFFER RESUMPTION
-          if (_isBuffering) {
+          if (_state == PngPlaybackState.buffering) {
             final int total = widget.imagePaths.length;
             final int currentRequiredFrame = (_controller.value * total).floor().clamp(0, total - 1);
             if (_loadedIndices.contains(currentRequiredFrame)) {
-              _isBuffering = false;
-              _updateAnimationState();
+              _updateState(PngPlaybackState.playing);
             }
           }
         });
@@ -611,10 +717,15 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       _controller.duration = widget.duration;
     }
     if (oldWidget.isPlaying != widget.isPlaying) {
-      _isPlaying = widget.isPlaying;
-      _updateAnimationState();
-    } else if (oldWidget.repeat != widget.repeat) {
-      _updateAnimationState();
+      _updateState(widget.isPlaying ? PngPlaybackState.playing : PngPlaybackState.paused);
+    }
+    if (oldWidget.repeat != widget.repeat) {
+      _syncPlayback();
+    }
+    
+    if (oldWidget.audioPath != widget.audioPath) {
+       _audioReady = false;
+       _setupAudio();
     }
     
     if (oldWidget.imagePaths != widget.imagePaths) {
@@ -629,53 +740,23 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     }
   }
 
-  void _updateAnimationState() {
-    if (!_precached || !_audioReady) return; // Wait for initial buffer
-
-    if (_isPlaying && !_isBuffering) {
-      if (widget.repeat) {
-        _shouldTriggerCompleted = false;
-        _controller.repeat();
-        if (widget.audioPath != null) _audioPlayer.resume();
-      } else {
-        _shouldTriggerCompleted = true;
-        if (_controller.value == 1.0) {
-          _controller.forward(from: 0.0);
-          if (widget.audioPath != null) {
-            _audioPlayer.seek(Duration.zero);
-            _audioPlayer.resume();
-          }
-        } else {
-          _controller.forward();
-          if (widget.audioPath != null) _audioPlayer.resume();
-        }
-      }
-    } else {
-      _shouldTriggerCompleted = false;
-      _controller.stop();
-      if (widget.audioPath != null) _audioPlayer.pause();
-    }
-  }
 
   void _togglePlayPause({bool? manualPlayState}) {
-    setState(() {
-      _isPlaying = manualPlayState ?? !_isPlaying;
-      _updateAnimationState();
-      _showOverlayIcon(icon: _isPlaying ? Icons.play_arrow : Icons.pause);
+    final bool targetPlay = manualPlayState ?? !_isPlaying;
+    _updateState(targetPlay ? PngPlaybackState.playing : PngPlaybackState.paused);
+    
+    _showOverlayIcon(icon: _isPlaying ? Icons.play_arrow : Icons.pause);
+    if (widget.onPlayStateChanged != null) {
+      widget.onPlayStateChanged!(_isPlaying);
+    }
+    _fullScreenEntry?.markNeedsBuild();
 
-      if (widget.onPlayStateChanged != null) {
-        widget.onPlayStateChanged!(_isPlaying);
-      }
-
-      _fullScreenEntry?.markNeedsBuild();
-
-      if (_isPlaying) {
-        _startHideTimer();
-      } else {
-        _hideTimer?.cancel();
-        _controlsVisible = true;
-      }
-    });
+    if (_isPlaying) {
+      _startHideTimer();
+    } else {
+      _hideTimer?.cancel();
+      _controlsVisible = true;
+    }
   }
 
   void _showOverlayIcon({required IconData icon}) {
@@ -701,17 +782,47 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
     _startHideTimer();
   }
 
-  void _seekTo(double value) {
-    _controller.value = value;
+  Future<void> _seekTo(double value, {bool? resume}) async {
+    _seekTimer?.cancel();
+    final int targetMs = (value * _effectiveDuration.inMilliseconds).toInt();
+    final bool shouldResume = resume ?? _isPlaying;
+    
+    _targetSeekMs = targetMs;
+    _lastSeekActionTime = DateTime.now().millisecondsSinceEpoch;
+    
+    // 1. Instant Visual Jump
+    setState(() {
+      _controller.value = value;
+      _frameIndexNotifier.value = (value * widget.imagePaths.length).floor().clamp(0, widget.imagePaths.length - 1);
+      _state = PngPlaybackState.seeking;
+      _isPlaying = shouldResume;
+    });
+
     if (widget.audioPath != null) {
-      final targetMs = (value * _effectiveDuration.inMilliseconds).toInt();
-      _audioPlayer.seek(Duration(milliseconds: targetMs));
+      try {
+        // 2. Clear hardware state
+        await _audioPlayer.pause();
+        await _audioPlayer.seek(Duration(milliseconds: targetMs));
+        
+        // 3. Resync and resume
+        if (mounted) {
+          // In just_audio, we call play() to resume
+          if (shouldResume) {
+            _audioPlayer.play();
+          } else {
+            _audioPlayer.pause();
+          }
+          _updateState(shouldResume ? PngPlaybackState.playing : PngPlaybackState.paused);
+        }
+      } catch (e) {
+        _updateState(shouldResume ? PngPlaybackState.playing : PngPlaybackState.paused);
+      }
+    } else {
+      _updateState(shouldResume ? PngPlaybackState.playing : PngPlaybackState.paused);
     }
+    
     if (widget.onSeek != null) {
       widget.onSeek!(value);
-    }
-    if (_isPlaying) {
-      _updateAnimationState();
     }
   }
 
@@ -783,6 +894,12 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   void dispose() {
     _hideTimer?.cancel();
     _overlayTimer?.cancel();
+    _seekTimer?.cancel();
+    _syncTimer?.cancel();
+    _posSub?.cancel();
+    _durSub?.cancel();
+    _compSub?.cancel();
+    _frameIndexNotifier.dispose();
     if (_fullScreenEntry != null) {
       _fullScreenEntry?.remove();
       _fullScreenEntry = null;
@@ -794,11 +911,13 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
-    widget.controller?.removeListener(_onControllerChanged);
     widget.controller?._detach();
     widget.subtitleController?.removeListener(_onSubtitleControllerChanged);
+    
+    // Hard stop for audio
     _audioPlayer.stop();
     _audioPlayer.dispose();
+    
     _controller.dispose();
     super.dispose();
   }
@@ -827,50 +946,31 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
               height: widget.height,
               child: const Center(child: CircularProgressIndicator()),
             )
-          : AnimatedBuilder(
-              key: const ValueKey('animator'),
-              animation: _controller,
-              builder: (context, child) {
-                final double value = _controller.value;
-                final int totalFrames = widget.imagePaths.length;
-                final int frameIndex = (value * totalFrames).floor().clamp(0, totalFrames - 1);
-
+          : ValueListenableBuilder<int>(
+              valueListenable: _frameIndexNotifier,
+              builder: (context, frameIndex, _) {
                 // Buffering Logic: If the current frame isn't loaded yet
-                if (!_loadedIndices.contains(frameIndex) && !_isBuffering) {
+                if (!_loadedIndices.contains(frameIndex) && _state == PngPlaybackState.playing) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted && !_isBuffering) {
-                      setState(() {
-                        _isBuffering = true;
-                        _controller.stop();
-                      });
+                    if (mounted && _state != PngPlaybackState.buffering) {
+                      _updateState(PngPlaybackState.buffering);
                       _fullScreenEntry?.markNeedsBuild();
+                    }
+                  });
+                } else if (_state == PngPlaybackState.buffering && _loadedIndices.contains(frameIndex)) {
+                   WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      _updateState(PngPlaybackState.playing);
                     }
                   });
                 }
 
                 Widget imageWidget;
+                final totalFrames = widget.imagePaths.length;
                 if (totalFrames == 0) {
                   imageWidget = const SizedBox.shrink();
-                } else if (totalFrames == 1) {
-                  imageWidget = _buildImage(widget.imagePaths.first);
                 } else {
-                  final double exactFrame = value * (totalFrames - 1);
-                  
-                  if (widget.transitionBuilder == null) {
-                    imageWidget = _buildImage(widget.imagePaths[frameIndex]);
-                  } else {
-                    final int currentFrameIndex = exactFrame.floor();
-                    final int nextFrameIndex = (currentFrameIndex + 1) < totalFrames
-                        ? currentFrameIndex + 1
-                        : currentFrameIndex;
-                    final double progressToNextFrame = exactFrame - currentFrameIndex;
-                    imageWidget = widget.transitionBuilder!(
-                      context,
-                      _buildImage(widget.imagePaths[currentFrameIndex]),
-                      _buildImage(widget.imagePaths[nextFrameIndex]),
-                      progressToNextFrame,
-                    );
-                  }
+                  imageWidget = _buildImage(widget.imagePaths[frameIndex]);
                 }
 
                 if (widget.heroTag != null) {
@@ -880,7 +980,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                 Widget content = imageWidget;
 
                 // Overlay buffer loader if necessary
-                if (_isBuffering) {
+                if (_state == PngPlaybackState.buffering) {
                   content = Stack(
                     fit: StackFit.expand,
                     children: [
@@ -1137,18 +1237,14 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                 thumbColor: widget.thumbColor ?? widget.activeColor ?? Colors.redAccent,
               ),
               child: Slider(
-                value: _controller.value,
-                onChangeStart: (_) {
+                value: _controller.value.clamp(0.0, 1.0),
+                onChangeStart: (val) {
                   _wasPlayingBeforeDrag = _isPlaying;
-                  _isPlaying = false;
-                  _updateAnimationState();
+                  _togglePlayPause(manualPlayState: false);
                   _hideTimer?.cancel();
                 },
-                onChangeEnd: (_) {
-                  if (_wasPlayingBeforeDrag) {
-                    _isPlaying = true;
-                    _updateAnimationState();
-                  }
+                onChangeEnd: (val) {
+                  _seekTo(val, resume: _wasPlayingBeforeDrag);
                   _startHideTimer();
                 },
                 onChanged: (val) {
@@ -1181,6 +1277,7 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
   Widget _buildImage(String path) {
     final provider = _imageProviders[path];
     if (provider == null) return const SizedBox.shrink();
+    
     return Image(
       image: provider,
       fit: widget.fit,
