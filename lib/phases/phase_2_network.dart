@@ -28,6 +28,7 @@ class NetworkAssetDemo extends StatelessWidget {
             child: Center(
               child: PngSeriesAnimator.videoPlayer(
                 imagePaths: networkImages,
+                audioPath: 'audio/default_sync.mp3',
                 duration: const Duration(seconds: 10),
                 heroTag: 'network_hero',
                 fit: BoxFit.contain,
