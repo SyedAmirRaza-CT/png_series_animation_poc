@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.png_series_animation_poc"
+    namespace = "com.ctamir.png_series_animation_poc"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.png_series_animation_poc"
+        applicationId = "com.ctamir.png_series_animation_poc"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
