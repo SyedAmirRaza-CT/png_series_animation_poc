@@ -1,0 +1,170 @@
+{
+  "en": [
+    {
+      "start": 0.0, "end": 6.0, "text": "Welcome to our experimental synchronized media player demo.",
+      "words": [
+        {"start": 0.0, "end": 0.8, "text": "Welcome"}, {"start": 0.9, "end": 1.2, "text": "to"}, {"start": 1.3, "end": 1.6, "text": "our"}, {"start": 1.7, "end": 2.8, "text": "experimental"}, {"start": 2.9, "end": 4.0, "text": "synchronized"}, {"start": 4.1, "end": 4.8, "text": "media"}, {"start": 4.9, "end": 5.4, "text": "player"}, {"start": 5.5, "end": 6.0, "text": "demo."}
+      ]
+    },
+    {
+      "start": 7.0, "end": 13.0, "text": "We are demonstrating frame-accurate PNG sequence animation.",
+      "words": [
+        {"start": 7.0, "end": 7.5, "text": "We"}, {"start": 7.6, "end": 8.0, "text": "are"}, {"start": 8.1, "end": 9.2, "text": "demonstrating"}, {"start": 9.3, "end": 10.5, "text": "frame-accurate"}, {"start": 10.6, "end": 11.2, "text": "PNG"}, {"start": 11.3, "end": 12.2, "text": "sequence"}, {"start": 12.3, "end": 13.0, "text": "animation."}
+      ]
+    },
+    {
+      "start": 14.0, "end": 20.0, "text": "The audio is perfectly synchronized with the visuals and text.",
+      "words": [
+        {"start": 14.0, "end": 14.5, "text": "The"}, {"start": 14.6, "end": 15.2, "text": "audio"}, {"start": 15.3, "end": 15.6, "text": "is"}, {"start": 15.7, "end": 16.5, "text": "perfectly"}, {"start": 16.6, "end": 17.8, "text": "synchronized"}, {"start": 17.9, "end": 18.2, "text": "with"}, {"start": 18.3, "end": 18.5, "text": "the"}, {"start": 18.6, "end": 19.4, "text": "visuals"}, {"start": 19.5, "end": 19.7, "text": "and"}, {"start": 19.8, "end": 20.0, "text": "text."}
+      ]
+    },
+    {
+      "start": 21.0, "end": 27.0, "text": "This feature supports multiple languages including Hindi and Urdu.",
+      "words": [
+        {"start": 21.0, "end": 21.5, "text": "This"}, {"start": 21.6, "end": 22.5, "text": "feature"}, {"start": 22.6, "end": 23.5, "text": "supports"}, {"start": 23.6, "end": 24.5, "text": "multiple"}, {"start": 24.6, "end": 25.4, "text": "languages"}, {"start": 25.5, "end": 26.2, "text": "including"}, {"start": 26.3, "end": 26.7, "text": "Hindi"}, {"start": 26.8, "end": 26.9, "text": "and"}, {"start": 27.0, "end": 27.0, "text": "Urdu."}
+      ]
+    },
+    {
+      "start": 28.0, "end": 34.0, "text": "Notice how the words highlight in real-time as they are spoken.",
+      "words": [
+        {"start": 28.0, "end": 28.8, "text": "Notice"}, {"start": 28.9, "end": 29.2, "text": "how"}, {"start": 29.3, "end": 29.5, "text": "the"}, {"start": 29.6, "end": 30.2, "text": "words"}, {"start": 30.3, "end": 31.2, "text": "highlight"}, {"start": 31.3, "end": 31.5, "text": "in"}, {"start": 31.6, "end": 32.5, "text": "real-time"}, {"start": 32.6, "end": 32.8, "text": "as"}, {"start": 32.9, "end": 33.2, "text": "they"}, {"start": 33.3, "end": 33.5, "text": "are"}, {"start": 33.6, "end": 34.0, "text": "spoken."}
+      ]
+    },
+    {
+      "start": 35.0, "end": 41.0, "text": "This creates a karaoke-style experience for better accessibility.",
+      "words": [
+        {"start": 35.0, "end": 35.5, "text": "This"}, {"start": 35.6, "end": 36.5, "text": "creates"}, {"start": 36.6, "end": 36.8, "text": "a"}, {"start": 36.9, "end": 38.2, "text": "karaoke-style"}, {"start": 38.3, "end": 39.5, "text": "experience"}, {"start": 39.6, "end": 40.0, "text": "for"}, {"start": 40.1, "end": 40.5, "text": "better"}, {"start": 40.6, "end": 41.0, "text": "accessibility."}
+      ]
+    },
+    {
+      "start": 42.0, "end": 48.0, "text": "You can switch languages instantly during playback.",
+      "words": [
+        {"start": 42.0, "end": 42.5, "text": "You"}, {"start": 42.6, "end": 43.0, "text": "can"}, {"start": 43.1, "end": 43.8, "text": "switch"}, {"start": 43.9, "end": 44.8, "text": "languages"}, {"start": 44.9, "end": 45.8, "text": "instantly"}, {"start": 45.9, "end": 46.8, "text": "during"}, {"start": 46.9, "end": 48.0, "text": "playback."}
+      ]
+    },
+    {
+      "start": 49.0, "end": 55.0, "text": "The asset bundle system allows for on-demand content updates.",
+      "words": [
+        {"start": 49.0, "end": 49.5, "text": "The"}, {"start": 49.6, "end": 50.2, "text": "asset"}, {"start": 50.3, "end": 51.0, "text": "bundle"}, {"start": 51.1, "end": 51.8, "text": "system"}, {"start": 51.9, "end": 52.8, "text": "allows"}, {"start": 52.9, "end": 53.2, "text": "for"}, {"start": 53.3, "end": 54.2, "text": "on-demand"}, {"start": 54.3, "end": 54.8, "text": "content"}, {"start": 54.9, "end": 55.0, "text": "updates."}
+      ]
+    },
+    {
+      "start": 56.0, "end": 60.0, "text": "Thank you for testing Phase Five of our synchronization engine.",
+      "words": [
+        {"start": 56.0, "end": 56.5, "text": "Thank"}, {"start": 56.6, "end": 56.9, "text": "you"}, {"start": 57.0, "end": 57.3, "text": "for"}, {"start": 57.4, "end": 58.0, "text": "testing"}, {"start": 58.1, "end": 58.6, "text": "Phase"}, {"start": 58.7, "end": 59.2, "text": "Five"}, {"start": 59.3, "end": 59.5, "text": "of"}, {"start": 59.6, "end": 59.8, "text": "our"}, {"start": 59.9, "end": 60.0, "text": "synchronization"}, {"start": 60.1, "end": 60.5, "text": "engine."}
+      ]
+    }
+  ],
+  "hi": [
+    {
+      "start": 0.0, "end": 6.0, "text": "हमारे प्रयोगात्मक सिंक्रोनाइज्ड मीडिया प्लेयर डेमो में आपका स्वागत है।",
+      "words": [
+        {"start": 0.0, "end": 1.0, "text": "हमारे"}, {"start": 1.1, "end": 2.0, "text": "प्रयोगात्मक"}, {"start": 2.1, "end": 3.0, "text": "सिंक्रोनाइज्ड"}, {"start": 3.1, "end": 4.0, "text": "मीडिया"}, {"start": 4.1, "end": 4.5, "text": "प्लेयर"}, {"start": 4.6, "end": 5.0, "text": "डेमो"}, {"start": 5.1, "end": 5.4, "text": "में"}, {"start": 5.5, "end": 5.7, "text": "आपका"}, {"start": 5.8, "end": 6.0, "text": "स्वागत"}, {"start": 6.1, "end": 6.3, "text": "है।"}
+      ]
+    },
+    {
+      "start": 7.0, "end": 13.0, "text": "हम फ्रेम-सटीक PNG सीक्वेंस एनीमेशन का प्रदर्शन कर रहे हैं।",
+      "words": [
+        {"start": 7.0, "end": 7.5, "text": "हम"}, {"start": 7.6, "end": 8.5, "text": "फ्रेम-सटीक"}, {"start": 8.6, "end": 9.2, "text": "PNG"}, {"start": 9.3, "end": 10.2, "text": "सीक्वेंस"}, {"start": 10.3, "end": 11.2, "text": "एनीमेशन"}, {"start": 11.3, "end": 11.6, "text": "का"}, {"start": 11.7, "end": 12.5, "text": "प्रदर्शन"}, {"start": 12.6, "end": 12.8, "text": "कर"}, {"start": 12.9, "end": 13.0, "text": "रहे"}, {"start": 13.1, "end": 13.3, "text": "हैं।"}
+      ]
+    },
+    {
+      "start": 14.0, "end": 20.0, "text": "ऑडियो दृश्यों और पाठ के साथ पूरी तरह से सिंक्रनाइज़ है।",
+      "words": [
+        {"start": 14.0, "end": 15.0, "text": "ऑडियो"}, {"start": 15.1, "end": 16.0, "text": "दृश्यों"}, {"start": 16.1, "end": 16.5, "text": "और"}, {"start": 16.6, "end": 17.0, "text": "पाठ"}, {"start": 17.1, "end": 17.4, "text": "के"}, {"start": 17.5, "end": 17.8, "text": "साथ"}, {"start": 17.9, "end": 18.5, "text": "पूरी"}, {"start": 18.6, "end": 19.0, "text": "तरह"}, {"start": 19.1, "end": 19.3, "text": "से"}, {"start": 19.4, "end": 19.8, "text": "सिंक्रनाइज़"}, {"start": 19.9, "end": 20.0, "text": "है।"}
+      ]
+    },
+    {
+      "start": 21.0, "end": 27.0, "text": "यह सुविधा हिंदी और उर्दू सहित कई भाषाओं का समर्थन करती है।",
+      "words": [
+        {"start": 21.0, "end": 21.5, "text": "यह"}, {"start": 21.6, "end": 22.5, "text": "सुविधा"}, {"start": 22.6, "end": 23.0, "text": "हिंदी"}, {"start": 23.1, "end": 23.3, "text": "और"}, {"start": 23.4, "end": 23.8, "text": "उर्दू"}, {"start": 23.9, "end": 24.3, "text": "सहित"}, {"start": 24.4, "end": 24.8, "text": "कई"}, {"start": 24.9, "end": 25.5, "text": "भाषाओं"}, {"start": 25.6, "end": 26.0, "text": "का"}, {"start": 26.1, "end": 26.5, "text": "समर्थन"}, {"start": 26.6, "end": 26.8, "text": "करती"}, {"start": 26.9, "end": 27.0, "text": "है।"}
+      ]
+    },
+    {
+      "start": 28.0, "end": 34.0, "text": "ध्यान दें कि शब्द बोले जाने पर वास्तविक समय में कैसे हाइलाइट होते हैं।",
+      "words": [
+        {"start": 28.0, "end": 29.0, "text": "ध्यान"}, {"start": 29.1, "end": 29.3, "text": "दें"}, {"start": 29.4, "end": 29.6, "text": "कि"}, {"start": 29.7, "end": 30.2, "text": "शब्द"}, {"start": 30.3, "end": 30.8, "text": "बोले"}, {"start": 30.9, "end": 31.2, "text": "जाने"}, {"start": 31.3, "end": 31.6, "text": "पर"}, {"start": 31.7, "end": 32.2, "text": "वास्तविक"}, {"start": 32.3, "end": 32.6, "text": "समय"}, {"start": 32.7, "end": 32.9, "text": "में"}, {"start": 33.0, "end": 33.3, "text": "कैसे"}, {"start": 33.4, "end": 33.8, "text": "हाइलाइट"}, {"start": 33.9, "end": 34.0, "text": "होते"}, {"start": 34.1, "end": 34.0, "text": "हैं।"}
+      ]
+    },
+    {
+      "start": 35.0, "end": 41.0, "text": "यह बेहतर पहुंच के लिए कराओके-शैली का अनुभव बनाता है।",
+      "words": [
+        {"start": 35.0, "end": 35.5, "text": "यह"}, {"start": 35.6, "end": 36.2, "text": "बेहतर"}, {"start": 36.3, "end": 36.8, "text": "पहुंच"}, {"start": 36.9, "end": 37.2, "text": "के"}, {"start": 37.3, "end": 37.6, "text": "लिए"}, {"start": 37.7, "end": 39.0, "text": "कराओके-शैली"}, {"start": 39.1, "end": 39.3, "text": "का"}, {"start": 39.4, "end": 40.0, "text": "अनुभव"}, {"start": 40.1, "end": 40.5, "text": "बनाता"}, {"start": 40.6, "end": 41.0, "text": "है।"}
+      ]
+    },
+    {
+      "start": 42.0, "end": 48.0, "text": "आप प्लेबैक के दौरान तुरंत भाषा बदल सकते हैं।",
+      "words": [
+        {"start": 42.0, "end": 42.5, "text": "आप"}, {"start": 42.6, "end": 43.5, "text": "प्लेबैक"}, {"start": 43.6, "end": 43.8, "text": "के"}, {"start": 43.9, "end": 44.5, "text": "दौरान"}, {"start": 44.6, "end": 45.2, "text": "तुरंत"}, {"start": 45.3, "end": 45.8, "text": "भाषा"}, {"start": 45.9, "end": 46.5, "text": "बदल"}, {"start": 46.6, "end": 47.0, "text": "सकते"}, {"start": 47.1, "end": 48.0, "text": "हैं।"}
+      ]
+    },
+    {
+      "start": 49.0, "end": 55.0, "text": "एसेट बंडल सिस्टम ऑन-डिमांड सामग्री अपडेट की अनुमति देता है।",
+      "words": [
+        {"start": 49.0, "end": 50.0, "text": "एसेट"}, {"start": 50.1, "end": 51.0, "text": "बंडल"}, {"start": 51.1, "end": 52.0, "text": "सिस्टम"}, {"start": 52.1, "end": 53.0, "text": "ऑन-डिमांड"}, {"start": 53.1, "end": 54.0, "text": "सामग्री"}, {"start": 54.1, "end": 54.5, "text": "अपडेट"}, {"start": 54.6, "end": 54.8, "text": "की"}, {"start": 54.9, "end": 55.0, "text": "अनुमति"}, {"start": 55.1, "end": 55.0, "text": "देता"}, {"start": 55.1, "end": 55.0, "text": "है।"}
+      ]
+    },
+    {
+      "start": 56.0, "end": 60.0, "text": "हमारे सिंक्रनाइज़ेशन इंजन के पांचवें चरण के परीक्षण के लिए धन्यवाद।",
+      "words": [
+        {"start": 56.0, "end": 57.0, "text": "हमारे"}, {"start": 57.1, "end": 58.0, "text": "सिंक्रनाइज़ेशन"}, {"start": 58.1, "end": 58.6, "text": "इंजन"}, {"start": 58.7, "end": 58.9, "text": "के"}, {"start": 59.0, "end": 59.4, "text": "पांचवें"}, {"start": 59.5, "end": 59.8, "text": "चरण"}, {"start": 59.9, "end": 60.2, "text": "के"}, {"start": 60.3, "end": 60.5, "text": "परीक्षण"}, {"start": 60.6, "end": 60.8, "text": "के"}, {"start": 60.9, "end": 61.2, "text": "लिए"}, {"start": 61.3, "end": 61.5, "text": "धन्यवाद।"}
+      ]
+    }
+  ],
+  "ur": [
+    {
+      "start": 0.0, "end": 6.0, "text": "ہمارے تجرباتی مطابقت پذیر میڈیا پلیئر ڈیمو میں خوش آمدید۔",
+      "words": [
+        {"start": 0.0, "end": 1.0, "text": "ہمارے"}, {"start": 1.1, "end": 2.0, "text": "تجرباتی"}, {"start": 2.1, "end": 3.0, "text": "مطابقت"}, {"start": 3.1, "end": 3.5, "text": "پذیر"}, {"start": 3.6, "end": 4.2, "text": "میڈیا"}, {"start": 4.3, "end": 4.8, "text": "پلیئر"}, {"start": 4.9, "end": 5.2, "text": "ڈیمو"}, {"start": 5.3, "end": 5.5, "text": "میں"}, {"start": 5.6, "end": 5.8, "text": "خوش"}, {"start": 5.9, "end": 6.0, "text": "آمدید۔"}
+      ]
+    },
+    {
+      "start": 7.0, "end": 13.0, "text": "ہم فریم سے متعلق PNG ترتیب حرکت پذیری کا مظاہرہ کر رہے ہیں۔",
+      "words": [
+        {"start": 7.0, "end": 7.5, "text": "ہم"}, {"start": 7.6, "end": 8.5, "text": "فریم"}, {"start": 8.6, "end": 8.8, "text": "سے"}, {"start": 8.9, "end": 9.2, "text": "متعلق"}, {"start": 9.3, "end": 9.6, "text": "PNG"}, {"start": 9.7, "end": 10.2, "text": "ترتیب"}, {"start": 10.3, "end": 11.2, "text": "حرکت"}, {"start": 11.3, "end": 11.8, "text": "پذیری"}, {"start": 11.9, "end": 12.1, "text": "کا"}, {"start": 12.2, "end": 12.6, "text": "مظاہرہ"}, {"start": 12.7, "end": 12.9, "text": "کر"}, {"start": 13.0, "end": 13.0, "text": "رہے"}, {"start": 13.1, "end": 13.0, "text": "ہیں۔"}
+      ]
+    },
+    {
+      "start": 14.0, "end": 20.0, "text": "آڈیو بصری اور متن کے ساتھ بالکل ہم آہنگ ہے۔",
+      "words": [
+        {"start": 14.0, "end": 15.0, "text": "آڈیو"}, {"start": 15.1, "end": 16.0, "text": "بصری"}, {"start": 16.1, "end": 16.5, "text": "اور"}, {"start": 16.6, "end": 17.0, "text": "متن"}, {"start": 17.1, "end": 17.4, "text": "کے"}, {"start": 17.5, "end": 17.8, "text": "ساتھ"}, {"start": 17.9, "end": 18.5, "text": "بالکل"}, {"start": 18.6, "end": 19.2, "text": "ہم"}, {"start": 19.3, "end": 19.5, "text": "آہنگ"}, {"start": 19.6, "end": 20.0, "text": "ہے۔"}
+      ]
+    },
+    {
+      "start": 21.0, "end": 27.0, "text": "یہ فیچر ہندی اور اردو سمیت متعدد زبانوں کو سپورٹ کرتا ہے۔",
+      "words": [
+        {"start": 21.0, "end": 21.5, "text": "یہ"}, {"start": 21.6, "end": 22.5, "text": "فیچر"}, {"start": 22.6, "end": 23.0, "text": "ہندی"}, {"start": 23.1, "end": 23.3, "text": "اور"}, {"start": 23.4, "end": 23.8, "text": "اردو"}, {"start": 23.9, "end": 24.3, "text": "سمیت"}, {"start": 24.4, "end": 24.8, "text": "متعدد"}, {"start": 24.9, "end": 25.5, "text": "زبانوں"}, {"start": 25.6, "end": 25.8, "text": "کو"}, {"start": 25.9, "end": 26.5, "text": "سپورٹ"}, {"start": 26.6, "end": 26.9, "text": "کرتا"}, {"start": 27.0, "end": 27.0, "text": "ہے۔"}
+      ]
+    },
+    {
+      "start": 28.0, "end": 34.0, "text": "غور کریں کہ الفاظ بولے جانے کے ساتھ ہی حقیقی وقت میں کیسے نمایاں ہوتے ہیں۔",
+      "words": [
+        {"start": 28.0, "end": 28.5, "text": "غور"}, {"start": 28.6, "end": 29.0, "text": "کریں"}, {"start": 29.1, "end": 29.3, "text": "کہ"}, {"start": 29.4, "end": 30.0, "text": "الفاظ"}, {"start": 30.1, "end": 30.8, "text": "بولے"}, {"start": 30.9, "end": 31.5, "text": "جانے"}, {"start": 31.6, "end": 31.8, "text": "کے"}, {"start": 31.9, "end": 32.3, "text": "ساتھ"}, {"start": 32.4, "end": 32.6, "text": "ہی"}, {"start": 32.7, "end": 33.2, "text": "حقیقی"}, {"start": 33.3, "end": 33.5, "text": "وقت"}, {"start": 33.6, "end": 33.8, "text": "میں"}, {"start": 33.9, "end": 34.3, "text": "کیسے"}, {"start": 34.4, "end": 34.8, "text": "نمایاں"}, {"start": 34.9, "end": 35.5, "text": "ہوتے"}, {"start": 35.6, "end": 36.0, "text": "ہیں۔"}
+      ]
+    },
+    {
+      "start": 35.0, "end": 41.0, "text": "یہ بہتر رسائی کے لیے کراوکی طرز کا تجربہ فراہم کرتا ہے۔",
+      "words": [
+        {"start": 35.0, "end": 35.5, "text": "یہ"}, {"start": 35.6, "end": 36.2, "text": "بہتر"}, {"start": 36.3, "end": 36.8, "text": "رسائی"}, {"start": 36.9, "end": 37.2, "text": "کے"}, {"start": 37.3, "end": 37.6, "text": "لیے"}, {"start": 37.7, "end": 38.5, "text": "کراوکی"}, {"start": 38.6, "end": 39.0, "text": "طرز"}, {"start": 39.1, "end": 39.3, "text": "کا"}, {"start": 39.4, "end": 40.0, "text": "تجربہ"}, {"start": 40.1, "end": 40.5, "text": "فراہم"}, {"start": 40.6, "end": 40.9, "text": "کرتا"}, {"start": 41.0, "end": 41.0, "text": "ہے۔"}
+      ]
+    },
+    {
+      "start": 42.0, "end": 48.0, "text": "آپ پلے بیک کے دوران فوری طور پر زبانیں تبدیل کر سکتے ہیں۔",
+      "words": [
+        {"start": 42.0, "end": 42.5, "text": "آپ"}, {"start": 42.6, "end": 43.5, "text": "پلے"}, {"start": 43.6, "end": 44.2, "text": "بیک"}, {"start": 44.3, "end": 44.5, "text": "کے"}, {"start": 44.6, "end": 45.2, "text": "دوران"}, {"start": 45.3, "end": 45.8, "text": "فوری"}, {"start": 45.9, "end": 46.2, "text": "طور"}, {"start": 46.3, "end": 46.5, "text": "پر"}, {"start": 46.6, "end": 47.0, "text": "زبانیں"}, {"start": 47.1, "end": 47.5, "text": "تبدیل"}, {"start": 47.6, "end": 47.8, "text": "کر"}, {"start": 47.9, "end": 48.2, "text": "سکتے"}, {"start": 48.3, "end": 48.5, "text": "ہیں۔"}
+      ]
+    },
+    {
+      "start": 49.0, "end": 55.0, "text": "اثاثہ بنڈل سسٹم آن ڈیمانڈ مواد کی اپ ڈیٹس کی اجازت دیتا ہے۔",
+      "words": [
+        {"start": 49.0, "end": 50.0, "text": "اثاثہ"}, {"start": 50.1, "end": 50.8, "text": "بنڈل"}, {"start": 50.9, "end": 51.5, "text": "سسٹم"}, {"start": 51.6, "end": 52.2, "text": "آن"}, {"start": 52.3, "end": 52.8, "text": "ڈیمانڈ"}, {"start": 52.9, "end": 53.5, "text": "مواد"}, {"start": 53.6, "end": 53.8, "text": "کی"}, {"start": 53.9, "end": 54.2, "text": "اپ"}, {"start": 54.3, "end": 54.6, "text": "ڈیٹس"}, {"start": 54.7, "end": 54.9, "text": "کی"}, {"start": 55.0, "end": 55.5, "text": "اجازت"}, {"start": 55.6, "end": 55.9, "text": "دیتا"}, {"start": 56.0, "end": 56.0, "text": "ہے۔"}
+      ]
+    },
+    {
+      "start": 56.0, "end": 60.0, "text": "ہمارے سنکرونائزیشن انجن کے پانچویں مرحلے کی جانچ کرنے کا شکریہ۔",
+      "words": [
+        {"start": 56.0, "end": 56.8, "text": "ہمارے"}, {"start": 56.9, "end": 57.8, "text": "سنکرونائزیشن"}, {"start": 57.9, "end": 58.3, "text": "انجن"}, {"start": 58.4, "end": 58.6, "text": "کے"}, {"start": 58.7, "end": 59.3, "text": "پانچویں"}, {"start": 59.4, "end": 59.8, "text": "مرحلے"}, {"start": 59.9, "end": 60.1, "text": "کی"}, {"start": 60.2, "end": 60.6, "text": "جانچ"}, {"start": 60.7, "end": 61.0, "text": "کرنے"}, {"start": 61.1, "end": 61.3, "text": "کا"}, {"start": 61.4, "end": 61.8, "text": "شکریہ۔"}
+      ]
+    }
+  ]
+}

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'png_series_animator.dart';
 import 'utils/image_cache_manager.dart';
+import 'phases/phase_1_local.dart';
+import 'phases/phase_2_network.dart';
+import 'phases/phase_3_on_demand.dart';
+import 'phases/phase_4_synced_av.dart';
+import 'phases/phase_5_subtitles.dart';
+import 'phases/phase_6_no_fallback.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,42 +39,85 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _MenuButton(
-              title: 'Local Asset Series',
-              subtitle: 'Animation from bundled PNGs',
-              icon: Icons.folder_open,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LocalAssetDemo()),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _MenuButton(
+                title: 'Local Asset Series',
+                subtitle: 'Animation from bundled PNGs',
+                icon: Icons.folder_open,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LocalAssetDemo()),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            _MenuButton(
-              title: 'Network URL Series',
-              subtitle: 'Animation with persistent caching',
-              icon: Icons.cloud_download,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NetworkAssetDemo()),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Network URL Series',
+                subtitle: 'Animation with persistent caching',
+                icon: Icons.cloud_download,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NetworkAssetDemo()),
+                ),
               ),
-            ),
-            const SizedBox(height: 40),
-            TextButton.icon(
-              onPressed: () async {
-                await ImageCacheManager().clearCache();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Persistent storage cleared')),
-                  );
-                }
-              },
-              icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-              label: const Text('Clear Persistent Storage', style: TextStyle(color: Colors.redAccent)),
-            ),
-          ],
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'On-Demand Asset Bundles',
+                subtitle: 'Download and manage ZIP bundles',
+                icon: Icons.inventory_2,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AssetBundleDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 4: Synced AV',
+                subtitle: 'Synced Images & Audio Bundle',
+                icon: Icons.sync,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SyncedPlaybackDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 5: Subtitles & Highlights',
+                subtitle: 'Word-level sync & Multi-language',
+                icon: Icons.subtitles,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Phase5SubtitlesDemo()),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _MenuButton(
+                title: 'Phase 6: Strict Bundle',
+                subtitle: 'No assets fallback enabled',
+                icon: Icons.lock_outline,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Phase6NoFallbackDemo()),
+                ),
+              ),
+              const SizedBox(height: 40),
+              TextButton.icon(
+                onPressed: () async {
+                  await ImageCacheManager().clearCache();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Persistent storage cleared')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
+                label: const Text('Clear Persistent Storage', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -108,69 +156,6 @@ class _MenuButton extends StatelessWidget {
           subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
           trailing: const Icon(Icons.chevron_right),
         ),
-      ),
-    );
-  }
-}
-
-class LocalAssetDemo extends StatelessWidget {
-  const LocalAssetDemo({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final List<String> images = List.generate(
-      18,
-      (index) => 'assets/1/${10001 + index}.png',
-    );
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Local Assets')),
-      body: Center(
-        child: PngSeriesAnimator.videoPlayer(
-          imagePaths: images,
-          duration: const Duration(seconds: 2),
-          heroTag: 'local_hero',
-          fit: BoxFit.contain,
-        ),
-      ),
-    );
-  }
-}
-
-class NetworkAssetDemo extends StatelessWidget {
-  const NetworkAssetDemo({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Using a more reliable set of placeholder images for the demo
-    final List<String> networkImages = List.generate(
-      30,
-      (index) => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${index + 71}.png',
-    );
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Network Assets')),
-      body: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Fetching and caching network sequence...',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: PngSeriesAnimator.videoPlayer(
-                imagePaths: networkImages,
-                duration: const Duration(seconds: 10),
-                heroTag: 'network_hero',
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
