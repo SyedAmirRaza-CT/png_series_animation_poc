@@ -1008,7 +1008,10 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                             bottom: 40,
                             left: 20,
                             right: 20,
-                            child: _buildSubtitles(),
+                            child: AnimatedBuilder(
+                              animation: _controller,
+                              builder: (context, _) => _buildSubtitles(),
+                            ),
                           ),
                       ],
                     ),
@@ -1050,7 +1053,10 @@ class _PngSeriesAnimatorState extends State<PngSeriesAnimator>
                                   bottom: widget.showControls && _controlsVisible ? 100 : 40,
                                   left: 20,
                                   right: 20,
-                                  child: _buildSubtitles(),
+                                  child: AnimatedBuilder(
+                                    animation: _controller,
+                                    builder: (context, _) => _buildSubtitles(),
+                                  ),
                                 ),
                               Center(
                                 child: AnimatedOpacity(
